@@ -1,0 +1,40 @@
+<!--
+  Library "back to home" button — paste into any single-file HTML app.
+  It stays hidden when the file is opened on its own (Safari, another PWA, desktop).
+  When the app runs inside the Library, the Library reveals it, and hides its own
+  floating ⌂ button because your app now has one.
+
+  Style it however you like — the only thing that matters is the data-library-home attribute.
+  Anything with that attribute goes back to the Library when tapped.
+-->
+<button data-library-home hidden
+  style="position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:10px;z-index:9999;
+         padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);
+         background:rgba(0,0,0,.55);color:#fff;font:600 13px system-ui;">
+  ⌂ Library
+</button>
+
+<!--
+  Prefer to wire it from JavaScript? window.__LIBRARY__ exists only inside the Library:
+
+    if (window.__LIBRARY__) {
+      __LIBRARY__.home();            // back to the Library (the app keeps running in the background)
+      __LIBRARY__.homeButton(false); // hide the Library's floating ⌂ if you draw your own button
+      __LIBRARY__.setIcon(dataUrl);  // set this app's icon (data:image/... URL)
+      __LIBRARY__.setName('Name');   // rename this app in the Library
+      __LIBRARY__.appId;             // stable id of this app inside the Library
+    }
+
+  CSS hook: <html> gets class "in-library" while running inside the Library, e.g.
+    html.in-library .only-when-standalone { display: none }
+
+  Optional <head> tags the Library reads when you import the file:
+
+    <meta name="library-name" content="My App">
+    <meta name="library-icon" content="🚀">           emoji, or a data:image/... URL
+    <meta name="library-folder" content="Games">
+    <meta name="library-home-button" content="off">  you supply your own button
+
+  It also reads <title>, <meta name="apple-mobile-web-app-title">, <meta name="theme-color">,
+  and a data: URL <link rel="apple-touch-icon"> / <link rel="icon"> as the icon.
+-->
