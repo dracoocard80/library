@@ -8,7 +8,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Library">
 <meta name="application-name" content="Library">
-<meta name="theme-color" content="#0c0e13">
 <meta name="color-scheme" content="dark">
 <meta name="format-detection" content="telephone=no">
 <title>Library</title>
@@ -197,6 +196,21 @@ textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid
 #scrim2{z-index:200}
 
 /* ---------- Toast ---------- */
+/* Full-bleed test overlay — draws the true edges of the web view. */
+#vptest{position:fixed;top:0;left:0;width:var(--vpw,100vw);height:var(--vph,100dvh);z-index:500;display:none;
+  background:#1b0f2b;border:3px solid #ff2fd0;color:#fff;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+  flex-direction:column;align-items:stretch;text-align:center;overflow:hidden}
+#vptest.on{display:flex}
+#vptest .band{background:rgba(80,255,140,.30);border-bottom:1px dashed #50ff8c;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;min-height:1px}
+#vptest .band.bot{border-bottom:0;border-top:1px dashed #50ff8c}
+#vptest .top{height:var(--sat)}
+#vptest .bot{height:var(--sab)}
+#vptest .mid{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:14px;overflow:auto}
+#vptest pre{margin:0;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:left;-webkit-user-select:text;user-select:text}
+#vptest .verdict{font-weight:700;font-size:14px;max-width:320px}
+#vptest .ok{color:#7dffb0}
+#vptest .bad{color:#ffb84a}
+#vptest button{border:0;border-radius:10px;padding:10px 16px;font-weight:700;background:#ff2fd0;color:#1b0f2b}
 #toast{position:fixed;left:50%;bottom:calc(var(--sab) + 24px);transform:translate(-50%,20px);background:#262c3a;color:#fff;border-radius:999px;padding:10px 16px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:all .25s;pointer-events:none;max-width:calc(100% - 40px);text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 #toast.action{pointer-events:auto}
@@ -261,6 +275,7 @@ textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid
 </div>
 <div class="scrim" id="scrim2"></div>
 <div class="dialog" id="dialog"></div>
+<div id="vptest"></div>
 <div id="toast"></div>
 
 <input type="file" id="fileInput" class="sr" multiple accept=".html,.htm,.txt,text/html,text/plain">

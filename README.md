@@ -83,6 +83,21 @@ and turning the switch off restores the app's own layout instantly.
 The same mechanism prevents double-padding at the top: in *Pad* mode the Library zeroes the app's
 top/left/right insets and applies them itself.
 
+### If the app is not full-screen (black strips at the top/bottom)
+
+Settings → **Full-screen test** draws a pink border on the true edges of the web view and prints
+the viewport / safe-area numbers. On an iPhone 15 Pro Max home-screen app you want
+`viewport: 430 x 932`, `safe areas: top 59 bottom 34`, `full-bleed: YES`. If you instead see
+something like `430 x 839` with all insets `0`, iOS is laying the web view out *inside* the safe
+area: the strips are outside the page and no CSS in the Library or in an app can paint them.
+
+The cause is a declared theme colour: since iOS 16.4 a manifest `theme_color` (or a page
+`<meta name="theme-color">`) makes iOS paint the status-bar strip itself and drop the
+`black-translucent` full-bleed behaviour. Neither is declared here any more, which is what
+restores the full-screen viewport. iOS snapshots the manifest when you add the icon, so if the
+strips survive an update: **Storage → Back up everything** first (removing the icon deletes the
+data), then delete the Home Screen icon, re-add it from Safari, and restore the backup.
+
 ## Orientation lock
 
 iOS ignores the manifest `orientation` field for home-screen web apps and doesn't implement

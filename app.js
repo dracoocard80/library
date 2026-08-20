@@ -5,7 +5,7 @@
    data (or the Library's). */
 'use strict';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -629,11 +629,66 @@ async function openStorageSheet() {
 }
 
 /* ---------- Settings sheet ---------- */
+/* What the page can actually see of the screen. If the web view is laid out inside the
+   safe area (iOS not honouring viewport-fit=cover) the insets read 0 and innerHeight is
+   short of screen.height — no CSS can reach those strips, they're outside the page. */
+function displayInfo() {
+  const vv = window.visualViewport;
+  const ins = { top: safeInset('top'), right: safeInset('right'), bottom: safeInset('bottom'), left: safeInset('left') };
+  const sw = screen.width, sh = screen.height;
+  const portrait = window.innerHeight >= window.innerWidth;
+  const screenLong = Math.max(sw, sh), screenShort = Math.min(sw, sh);
+  const expectH = portrait ? screenLong : screenShort;
+  const missing = Math.max(0, expectH - window.innerHeight);
+  const fullBleed = missing <= 2;
+  return {
+    standalone: IS_STANDALONE, ios: IS_IOS,
+    inner: [window.innerWidth, window.innerHeight],
+    screen: [sw, sh],
+    visual: vv ? [Math.round(vv.width), Math.round(vv.height), Math.round(vv.offsetTop)] : null,
+    insets: ins, dpr: window.devicePixelRatio || 1,
+    missing, fullBleed,
+  };
+}
+function diagnosticsText() {
+  const d = displayInfo();
+  return [
+    'Library ' + APP_VERSION,
+    'standalone: ' + d.standalone + '   iOS: ' + d.ios,
+    'viewport:   ' + d.inner[0] + ' x ' + d.inner[1],
+    'screen:     ' + d.screen[0] + ' x ' + d.screen[1] + '   dpr ' + d.dpr,
+    'visual vp:  ' + (d.visual ? d.visual[0] + ' x ' + d.visual[1] + ' @' + d.visual[2] : 'n/a'),
+    'safe areas: top ' + d.insets.top + '  bottom ' + d.insets.bottom + '  left ' + d.insets.left + '  right ' + d.insets.right,
+    'unreachable: ' + d.missing + 'pt',
+    'full-bleed: ' + (d.fullBleed ? 'YES' : 'NO'),
+  ].join('\n');
+}
+function openViewportTest() {
+  const d = displayInfo(), o = $('#vptest');
+  sizeStage();
+  const good = d.fullBleed && (!d.standalone || d.insets.top > 0 || !IS_IOS);
+  o.innerHTML = '';
+  o.append(el('div', { class: 'band top' }, `safe-area-inset-top = ${d.insets.top}pt`));
+  const mid = el('div', { class: 'mid' });
+  mid.append(
+    el('div', { class: 'verdict ' + (good ? 'ok' : 'bad') }, good
+      ? 'Full-bleed ✓ — the pink border should touch all four screen edges.'
+      : 'Not full-bleed — iOS is keeping ' + d.missing + 'pt of the screen outside the page. Black strips outside the pink border cannot be reached by any app.'),
+    el('div', null, 'If you see black OUTSIDE the pink border, the web view does not cover the screen.'),
+    el('pre', null, diagnosticsText()),
+    el('button', { onclick: async () => { try { await navigator.clipboard.writeText(diagnosticsText()); toast('Diagnostics copied'); } catch (e) { toast('Select the text above to copy'); } } }, 'Copy diagnostics'),
+    el('button', { onclick: () => o.classList.remove('on') }, 'Close'),
+  );
+  o.append(mid);
+  o.append(el('div', { class: 'band bot' }, `safe-area-inset-bottom = ${d.insets.bottom}pt`));
+  o.classList.add('on');
+}
 function openSettingsSheet() {
   openSheet('Settings', (b) => {
     b.append(section(
       row('Installed as app', IS_STANDALONE ? 'yes' : 'no', { sub: IS_STANDALONE ? 'Running from the Home Screen.' : 'In Safari: Share → Add to Home Screen. The installed copy has its own storage, so import your apps there.' }),
       row('Version', APP_VERSION + (SW.reg ? '' : ' (no service worker)'), { sub: 'Files are cached for offline use.' }),
+      row('Full-screen test', el('span', { class: 'chev' }, '›'), { btn: true, sub: 'Draws a border on the true edges of the app and reports the viewport / safe-area numbers.', onclick: openViewportTest }),
       row('Check for updates', el('span', { class: 'chev' }, '›'), { btn: true, onclick: async () => { if (!SW.reg) { toast('Service worker not registered'); return; } toast('Checking…'); try { SW.updateShown = false; await SW.reg.update(); setTimeout(() => { if (SW.reg.waiting) SW.offer(SW.reg.waiting); else if (!SW.updateShown) toast('You have the latest version'); }, 1500); } catch (e) { toast('Update check failed (offline?)'); } } }),
     ));
     b.append(section(
