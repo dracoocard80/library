@@ -1,12 +1,13 @@
 /* Library service worker — caches the app shell so it opens offline.
    Bump CACHE_VERSION whenever you change any file in ASSETS. */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE = 'html-library-' + CACHE_VERSION;
 const ASSETS = [
   './',
   './index.html',
   './app.js',
   './manifest.webmanifest',
+  './LIBRARY-APP-GUIDE.md',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png',

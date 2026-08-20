@@ -5,7 +5,7 @@
    data (or the Library's). */
 'use strict';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -176,8 +176,11 @@ function parseAppMeta(html, filename) {
   const themeColor = metaC('theme-color') || null;
   const safeArea = /safe-area-inset|viewport-fit\s*=\s*cover/i.test(html) ? 'full' : 'pad';
   const homeButton = !/^(off|false|no|0|hidden)$/i.test(metaC('library-home-button') || 'on');
+  const fillBottom = !/^(off|false|no|0)$/i.test(metaC('library-fill-bottom') || 'on');
+  const o = (metaC('library-orientation') || '').toLowerCase();
+  const orientation = /portrait/.test(o) ? 'portrait' : /landscape/.test(o) ? 'landscape' : 'auto';
   const folder = metaC('library-folder') || '';
-  return { name, icon, themeColor, safeArea, homeButton, folder, title: titleTxt };
+  return { name, icon, themeColor, safeArea, homeButton, fillBottom, orientation, folder, title: titleTxt };
 }
 const PALETTE = [['#3a6df0', '#7aa2ff'], ['#f0663a', '#ffb03a'], ['#2fbf71', '#63f2a0'], ['#b04ae0', '#e08cff'], ['#e04a7a', '#ff8cb0'], ['#20a4b8', '#5fe3ff'], ['#c9a227', '#ffe27a'], ['#5b6478', '#9aa4b8']];
 function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
@@ -227,7 +230,7 @@ async function createApp(html, filename, meta) {
     folderId: meta.folder ? (await ensureFolder(meta.folder)).id : (view.folder || null),
     createdAt: Date.now(), updatedAt: Date.now(), lastOpened: 0, htmlBytes: byteLen(html), sourceName: filename || '',
     auto: { safeArea: meta.safeArea, homeButton: meta.homeButton },
-    settings: { homeButton: meta.homeButton, safeArea: 'auto', homeBtnPos: null },
+    settings: { homeButton: meta.homeButton, safeArea: 'auto', homeBtnPos: null, fillBottom: meta.fillBottom, orientation: meta.orientation },
   };
   if (app.icon.type === 'img') { const n = await normalizeIconDataUrl(app.icon.src); if (n) app.icon.src = n; else app.icon = { type: 'letter' }; }
   await DB.multi(['apps', 'files', 'state'], (s) => { s.apps.put(app); s.files.put({ id: app.id, html }); s.state.put({ id: app.id, ls: {}, updatedAt: Date.now() }); });
@@ -239,6 +242,8 @@ async function replaceAppHtml(app, html, filename) {
   app.htmlBytes = byteLen(html); app.sourceName = filename || app.sourceName; app.themeColor = meta.themeColor;
   app.auto = { safeArea: meta.safeArea, homeButton: meta.homeButton };
   if (meta.homeButton === false) app.settings.homeButton = false; // the file explicitly opts out
+  if (meta.fillBottom === false) app.settings.fillBottom = false;
+  if (meta.orientation && meta.orientation !== 'auto') app.settings.orientation = meta.orientation;
   if ((!app.icon || app.icon.type === 'letter' || app.icon.from === 'html') && meta.icon) {
     app.icon = { ...meta.icon };
     if (app.icon.type === 'img') { const n = await normalizeIconDataUrl(app.icon.src); if (n) app.icon.src = n; else app.icon = { type: 'letter' }; }
@@ -521,8 +526,10 @@ async function openAppSheet(app) {
     const eff = effectiveSafeArea(app);
     b.append(section(
       row('Folder', sel),
-      row('Floating home button', switchBtn(app.settings.homeButton !== false, async (v) => { app.settings.homeButton = v; await saveApp(app); if (isRunning) updateHomeBtn(); }), { sub: 'A draggable ⌂ button over the app. Emergency exit: hold two fingers on the app for a second.' }),
-      row('Safe area', segControl([{ label: 'Auto', value: 'auto' }, { label: 'Full', value: 'full' }, { label: 'Padded', value: 'pad' }], app.settings.safeArea || 'auto', async (v) => { app.settings.safeArea = v; await saveApp(app); if (isRunning) applyStageMode(app); }), { sub: `Auto → ${eff === 'full' ? 'full-bleed (the app handles the notch itself)' : 'padded (the Library keeps the app clear of the notch)'}` }),
+      row('Floating home button', switchBtn(app.settings.homeButton !== false, async (v) => { app.settings.homeButton = v; await saveApp(app); if (isRunning) updateHomeBtn(); }), { sub: 'A draggable ⌂ button over the app. Emergency exit while it is off: hold two fingers still on the app for 1.5s.' }),
+      row('Top inset', segControl([{ label: 'Auto', value: 'auto' }, { label: 'Full', value: 'full' }, { label: 'Pad', value: 'pad' }], app.settings.safeArea || 'auto', async (v) => { app.settings.safeArea = v; await saveApp(app); if (isRunning) { applyOrientation(app); applyStageMode(app); } openAppSheet(app); }), { sub: `Keeps the app clear of the Dynamic Island. Auto → ${eff === 'full' ? 'full (this app handles the notch itself)' : 'pad (the Library holds it below the notch)'}. The bottom edge is always full-bleed.` }),
+      row('Fill bottom edge', switchBtn(app.settings.fillBottom !== false, async (v) => { app.settings.fillBottom = v; await saveApp(app); if (isRunning) applyStageMode(app); }), { sub: 'Ignores the app\'s own home-indicator padding so it reaches the bottom of the screen. Turn off if an app\'s bottom controls end up under the home bar.' }),
+      row('Orientation', segControl([{ label: 'Auto', value: 'auto' }, { label: 'Portrait', value: 'portrait' }, { label: 'Landscape', value: 'landscape' }], app.settings.orientation || 'auto', async (v) => { app.settings.orientation = v; await saveApp(app); if (isRunning) { tryNativeLock(v); applyOrientation(app); applyStageMode(app); positionHomeBtn(); } }), { sub: 'iOS can\'t lock a web app to one orientation, so the Library rotates the app itself when you turn the phone. Safe-area padding is off while rotated.' }),
     ));
     b.append(section(
       row('HTML file', fmtBytes(app.htmlBytes || 0), { sub: app.sourceName || '' }),
@@ -633,6 +640,7 @@ function openSettingsSheet() {
       row('Storage & backups', el('span', { class: 'chev' }, '›'), { btn: true, onclick: openStorageSheet }),
     ));
     b.append(el('h3', { style: 'font-size:14px;color:var(--muted);margin:18px 2px 8px;text-transform:uppercase;letter-spacing:.06em' }, 'For your HTML apps'));
+    b.append(section(row('Design guide for LLMs', el('span', { class: 'chev' }, '›'), { btn: true, sub: 'Everything an LLM needs to build apps that fit this phone and talk to the Library. Copy it and paste it into your prompt.', onclick: openGuideSheet })));
     b.append(el('div', { class: 'hint' }, 'Add a "back to Library" button to any app. Paste this anywhere in the page — it stays hidden when the file is opened on its own, and appears (and turns off the floating ⌂) when the app runs inside the Library:'));
     b.append(codeBox(SNIPPET_BUTTON));
     b.append(el('div', { class: 'hint' }, 'Or call it from your own UI / JS:'));
@@ -642,6 +650,36 @@ function openSettingsSheet() {
     b.append(el('div', { class: 'hint' }, 'The Library also reads <title>, <meta name="apple-mobile-web-app-title">, <meta name="theme-color"> and a data: URL <link rel="apple-touch-icon"> / <link rel="icon"> as the icon.'));
     b.append(section(row('Reset the whole Library', null, { btn: true, danger: true, sub: 'Deletes every app and all saved data.', onclick: async () => { if (await confirmDialog({ title: 'Reset the Library?', text: 'Every imported app and all their saved data will be deleted. This cannot be undone.', ok: 'Delete everything', danger: true })) { await resetLibrary(); closeSheet(); toast('Library reset'); } } })));
     b.append(el('div', { class: 'hint', style: 'text-align:center;margin-top:16px' }, `Library ${APP_VERSION}`));
+  });
+}
+let guideText = null;
+async function loadGuide() {
+  if (guideText) return guideText;
+  const r = await fetch('./LIBRARY-APP-GUIDE.md', { cache: 'no-cache' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  guideText = await r.text();
+  return guideText;
+}
+function openGuideSheet() {
+  openSheet('App design guide', async (b, seq) => {
+    b.append(el('div', { class: 'hint' }, 'Loading…'));
+    let text;
+    try { text = await loadGuide(); }
+    catch (e) { if (seq !== sheetSeq) return; b.innerHTML = ''; b.append(el('div', { class: 'hint' }, 'Could not load the guide (LIBRARY-APP-GUIDE.md is missing from this deployment).')); return; }
+    if (seq !== sheetSeq) return;
+    b.innerHTML = '';
+    b.append(el('div', { class: 'hint' }, 'Paste this into an LLM before asking it for a single-file HTML app. It covers this phone\'s size and notch, blocking zoom, touch controls, icons, saving state, and the ⌂ button contract.'));
+    const copy = el('button', { class: 'bigbtn' }, `Copy all (${Math.round(text.length / 1024)} KB)`);
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(text); copy.textContent = 'Copied ✓'; }
+      catch (e) { copy.textContent = 'Copy blocked — use Share below'; }
+      setTimeout(() => { copy.textContent = `Copy all (${Math.round(text.length / 1024)} KB)`; }, 2000);
+    });
+    b.append(copy);
+    b.append(el('button', { class: 'bigbtn secondary', onclick: () => saveFile(new Blob([text], { type: 'text/markdown' }), 'LIBRARY-APP-GUIDE.md') }, 'Share / save as a file'));
+    const box = el('div', { class: 'codebox', style: 'max-height:50vh;overflow:auto' });
+    box.append(el('pre', { style: 'white-space:pre-wrap' }, text));
+    b.append(box);
   });
 }
 const SNIPPET_BUTTON = `<button data-library-home hidden
@@ -662,7 +700,9 @@ if (window.__LIBRARY__) {
 const SNIPPET_META = `<meta name="library-name" content="My App">
 <meta name="library-icon" content="🚀">            <!-- emoji, or a data:image/... URL -->
 <meta name="library-folder" content="Games">
-<meta name="library-home-button" content="off">   <!-- you supply your own button -->`;
+<meta name="library-orientation" content="portrait">  <!-- or landscape -->
+<meta name="library-home-button" content="off">   <!-- you supply your own button -->
+<meta name="library-fill-bottom" content="off">   <!-- keep your own home-indicator padding -->`;
 
 /* ============================================================
    Backup / restore / files
@@ -696,7 +736,9 @@ async function restoreBackup(text) {
     try {
       const { html, localStorage: ls, ...meta } = a;
       if (typeof html !== 'string' || !meta.id || !meta.name) { failed++; continue; }
-      meta.settings = meta.settings || { homeButton: true, safeArea: 'auto' }; meta.auto = meta.auto || parseAppMeta(html, meta.sourceName);
+      meta.settings = meta.settings || { homeButton: true, safeArea: 'auto' };
+      if (meta.settings.fillBottom === undefined) meta.settings.fillBottom = true;
+      if (!meta.settings.orientation) meta.settings.orientation = 'auto'; meta.auto = meta.auto || parseAppMeta(html, meta.sourceName);
       meta.htmlBytes = byteLen(html);
       await DB.multi(['apps', 'files', 'state'], (s) => { s.apps.put(meta); s.files.put({ id: meta.id, html }); s.state.put({ id: meta.id, ls: ls || {}, updatedAt: Date.now() }); });
       const i = apps.findIndex((x) => x.id === meta.id); if (i >= 0) apps[i] = meta; else apps.push(meta);
@@ -839,15 +881,67 @@ function libraryShim(cfg) {
     }
   } catch (e) { }
 
+  /* --- Safe-area control ------------------------------------------------
+     The Library decides which screen edges the APP is responsible for.
+     Insets it takes over (or wants ignored, e.g. the bottom, so apps reach the
+     screen edge) are neutralised by re-declaring every rule that mentions them
+     with the inset replaced by 0px. Because a page's `--x: env(safe-area-inset-*)`
+     custom properties are re-declared too, indirect uses (var(--sab), calc(...))
+     collapse as well. Rules that don't mention the inset are untouched. */
+  var SA = { kill: (cfg.killInsets || []).slice(), el: null };
+  function insetRe() {
+    if (!SA.kill.length) return null;
+    return new RegExp('env\\(\\s*safe-area-inset-(?:' + SA.kill.join('|') + ')\\s*(?:,(?:[^()]|\\([^()]*\\))*)?\\)', 'gi');
+  }
+  function collectRules(rules, re, out) {
+    for (var i = 0; i < rules.length; i++) {
+      var r = rules[i], txt;
+      try { txt = r.cssText; } catch (e) { continue; }
+      if (!txt || txt.toLowerCase().indexOf('safe-area-inset') < 0) continue;
+      if (r.cssRules && r.cssRules.length) {          // @media / @supports / @layer …
+        var inner = []; collectRules(r.cssRules, re, inner);
+        if (inner.length) out.push(txt.slice(0, txt.indexOf('{') + 1) + inner.join('') + '}');
+      } else if (r.selectorText) {
+        re.lastIndex = 0;
+        if (re.test(txt)) { re.lastIndex = 0; out.push(txt.replace(re, '0px')); }
+      }
+    }
+  }
+  function applySafeArea() {
+    var re = insetRe();
+    if (SA.el) { try { SA.el.remove(); } catch (e) { } SA.el = null; }
+    if (!re || !document.documentElement) return;
+    var out = [];
+    var sheets = document.styleSheets;
+    for (var i = 0; i < sheets.length; i++) {
+      try { if (sheets[i].ownerNode && sheets[i].ownerNode.id === '__lib_sa') continue; collectRules(sheets[i].cssRules, re, out); } catch (e) { }
+    }
+    // inline style="" attributes that use the insets directly
+    try {
+      var inl = document.querySelectorAll('[style*="safe-area-inset"]');
+      for (var k = 0; k < inl.length; k++) { re.lastIndex = 0; var t = inl[k].getAttribute('style'); if (t && re.test(t)) { re.lastIndex = 0; inl[k].setAttribute('style', t.replace(re, '0px')); } }
+    } catch (e) { }
+    if (!out.length) return;
+    var st = document.createElement('style');
+    st.id = '__lib_sa'; st.textContent = out.join('\n');
+    document.documentElement.appendChild(st);   // last in the cascade → wins ties
+    SA.el = st;
+  }
+  function scheduleSafeArea() { try { applySafeArea(); } catch (e) { } setTimeout(function () { try { applySafeArea(); } catch (e) { } }, 400); }
+
   /* --- public API for apps --- */
   var LIB = {
     inLibrary: true, appId: cfg.appId, name: cfg.name, version: cfg.version, storageShim: okLS,
+    orientation: cfg.orientation || 'auto',
     home: function () { post({ type: 'home' }); },
     setIcon: function (src) { post({ type: 'setIcon', value: String(src) }); },
     setName: function (n) { post({ type: 'setName', value: String(n) }); },
     homeButton: function (show) { post({ type: 'homeButton', value: !!show }); },
     exportStorage: function () { return ls.snapshot(); }
   };
+  /* Screen edges the Library owns (or wants full-bleed); these read as 0px inside the app.
+     A getter so it stays correct when the setting is changed while the app is running. */
+  try { Object.defineProperty(LIB, 'ignoredInsets', { get: function () { return SA.kill.slice(); }, enumerable: true, configurable: true }); } catch (e) { }
   try { Object.defineProperty(w, '__LIBRARY__', { value: Object.freeze(LIB), configurable: true, writable: false }); } catch (e) { w.__LIBRARY__ = LIB; }
 
   /* --- DOM hooks: html.in-library, [data-library-home] elements, emergency exit --- */
@@ -869,6 +963,7 @@ function libraryShim(cfg) {
   function queueSync() { if (syncQueued) return; syncQueued = true; (w.requestAnimationFrame || w.setTimeout)(syncOwnHome, 16); }
   function onReady() {
     try { document.documentElement.classList.add('in-library'); } catch (e) { }
+    scheduleSafeArea();
     syncOwnHome();
     try { new MutationObserver(queueSync).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'style', 'class', 'data-library-home'] }); } catch (e) { }
     post({ type: 'ready', title: document.title });
@@ -889,6 +984,8 @@ function libraryShim(cfg) {
   }, { passive: true, capture: true });
   ['touchend', 'touchcancel'].forEach(function (n) { document.addEventListener(n, clearTwo, { passive: true, capture: true }); });
   w.addEventListener('error', function (e) { post({ type: 'error', message: String(e && e.message || e) }); });
+  w.addEventListener('resize', function () { try { applySafeArea(); } catch (e) { } });
+  w.addEventListener('load', scheduleSafeArea);
 
   /* --- Suspended by the Library? Pretend the page is hidden so autosave-on-hide code runs. --- */
   var libHidden = false;
@@ -901,6 +998,7 @@ function libraryShim(cfg) {
   } catch (e) { }
   w.addEventListener('message', function (e) {
     var d = e.data; if (!d || d.__lib !== true || e.source !== w.parent) return;
+    if (d.type === 'safeArea') { SA.kill = (d.kill || []).slice(); scheduleSafeArea(); return; }
     if (d.type === 'visibility') {
       var next = !!d.hidden; if (next === libHidden) return; libHidden = next;
       try { document.dispatchEvent(new Event('visibilitychange', { bubbles: true })); } catch (e2) { }
@@ -911,7 +1009,7 @@ function libraryShim(cfg) {
 /* ============================================================
    Runtime — parent side
    ============================================================ */
-const RT = { app: null, iframe: null, url: null, state: null, dirty: false, timer: null, suspended: false, ownHome: false, hideBtn: false, navigated: false, scrollY: 0, loadTimer: null };
+const RT = { app: null, iframe: null, url: null, state: null, dirty: false, timer: null, suspended: false, ownHome: false, hideBtn: false, navigated: false, rotated: false, scrollY: 0, loadTimer: null };
 const nullObj = (src) => Object.assign(Object.create(null), src || {});
 window.__libInitial = (id) => (RT.app && RT.app.id === id && RT.state) ? nullObj(RT.state) : null;
 function buildRunnableHtml(html, cfg) {
@@ -927,13 +1025,56 @@ function buildRunnableHtml(html, cfg) {
   return html.slice(0, at) + script + html.slice(at);
 }
 function effectiveSafeArea(app) { const s = app.settings && app.settings.safeArea; return s && s !== 'auto' ? s : ((app.auto && app.auto.safeArea) || 'pad'); }
+/* Which safe-area insets the APP should ignore because the Library owns that edge
+   (or because we want it full-bleed). See the shim's applySafeArea(). */
+function killInsets(app) {
+  if (RT.rotated) return ['top', 'bottom', 'left', 'right']; // rotated: device insets don't line up with the app's edges
+  const k = [];
+  if (effectiveSafeArea(app) === 'pad') k.push('top', 'left', 'right');
+  if (!app.settings || app.settings.fillBottom !== false) k.push('bottom');
+  return k;
+}
+/* The stage is sized from innerWidth/innerHeight rather than inset:0 so it always
+   covers the whole screen, whatever iOS does with fixed positioning. */
+function sizeStage() {
+  const r = document.documentElement.style;
+  r.setProperty('--vpw', window.innerWidth + 'px');
+  r.setProperty('--vph', window.innerHeight + 'px');
+}
+function deviceAngle() {
+  try { if (screen.orientation && typeof screen.orientation.angle === 'number') return ((screen.orientation.angle % 360) + 360) % 360; } catch (e) { }
+  return typeof window.orientation === 'number' ? ((window.orientation % 360) + 360) % 360 : 0;
+}
+/* iOS can't lock a web app's orientation, so when the device doesn't match we rotate
+   the app ourselves — the same result the OS lock would give; the app just sees a
+   portrait (or landscape) viewport. Native lock is attempted first where it exists. */
+function applyOrientation(app) {
+  const wrap = $('#frameWrap'), stage = $('#stage');
+  const want = (app && app.settings && app.settings.orientation) || 'auto';
+  const W = window.innerWidth, H = window.innerHeight, isPortrait = H >= W;
+  const wantPortrait = want === 'portrait' ? true : want === 'landscape' ? false : isPortrait;
+  const rot = wantPortrait !== isPortrait;
+  RT.rotated = rot;
+  stage.classList.toggle('rot', rot);
+  if (!rot) { wrap.style.cssText = ''; return; }
+  const deg = [90, 180].includes(deviceAngle()) ? -90 : 90;
+  wrap.style.cssText = 'position:absolute;left:' + (W - H) / 2 + 'px;top:' + (H - W) / 2 + 'px;width:' + H + 'px;height:' + W + 'px;transform:rotate(' + deg + 'deg);transform-origin:center center;';
+}
+function tryNativeLock(want) {
+  try {
+    if (!screen.orientation) return;
+    if (want && want !== 'auto' && screen.orientation.lock) { const p = screen.orientation.lock(want); if (p && p.catch) p.catch(() => { }); }
+    else if (screen.orientation.unlock) screen.orientation.unlock();
+  } catch (e) { }
+}
 function isLightColor(c) {
   try { const ctx = document.createElement('canvas').getContext('2d'); ctx.fillStyle = '#000'; ctx.fillStyle = c; const m = /^#([0-9a-f]{6})$/i.exec(ctx.fillStyle); if (!m) return false; const n = parseInt(m[1], 16); return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255 > 0.45; } catch (e) { return false; }
 }
 function applyStageMode(app) {
   const stage = $('#stage');
-  const pad = effectiveSafeArea(app) === 'pad';
+  const pad = effectiveSafeArea(app) === 'pad' && !RT.rotated;
   stage.classList.toggle('pad', pad);
+  tellApp({ type: 'safeArea', kill: killInsets(app) });
   // The status bar glyphs are always white (black-translucent), so only paint the padding with dark theme colors.
   stage.style.background = pad && app.themeColor && !isLightColor(app.themeColor) ? app.themeColor : '#000';
 }
@@ -960,9 +1101,12 @@ async function startApp(app, file, st) {
   // stage
   const li = $('#loadingIcon'); li.innerHTML = ''; li.append(iconNode(app)); $('#loadingName').textContent = app.name;
   $('#loading').classList.remove('off');
+  sizeStage();
+  tryNativeLock(app.settings.orientation);
+  applyOrientation(app);
   applyStageMode(app);
   showStage();
-  const cfg = { appId: app.id, name: app.name, version: APP_VERSION, initial: RT.state };
+  const cfg = { appId: app.id, name: app.name, version: APP_VERSION, initial: RT.state, killInsets: killInsets(app), orientation: app.settings.orientation || 'auto' };
   const html = buildRunnableHtml(file.html, cfg);
   RT.url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
   const f = document.createElement('iframe');
@@ -1007,7 +1151,7 @@ function suspendApp() {
 }
 function resumeApp() {
   if (!RT.app || !RT.suspended || quitting) return;
-  RT.suspended = false; applyStageMode(RT.app); showStage(); positionHomeBtn(); updateHomeBtn(); tellApp({ type: 'visibility', hidden: false }); render();
+  RT.suspended = false; sizeStage(); applyOrientation(RT.app); applyStageMode(RT.app); showStage(); positionHomeBtn(); updateHomeBtn(); tellApp({ type: 'visibility', hidden: false }); render();
 }
 let quitting = null;
 function quitApp() {
@@ -1027,6 +1171,7 @@ function quitApp() {
     try { if (RT.url) URL.revokeObjectURL(RT.url); } catch (e) { }
     clearTimeout(RT.timer); clearTimeout(RT.loadTimer);
     RT.app = null; RT.iframe = null; RT.url = null; RT.state = null; RT.dirty = false; RT.suspended = false; RT.timer = null;
+    RT.rotated = false; $('#stage').classList.remove('rot'); $('#frameWrap').style.cssText = ''; tryNativeLock('auto');
     setSetting('running', null);
     hideStage(); updateHomeBtn(); render();
   })().finally(() => { quitting = null; });
@@ -1121,7 +1266,14 @@ function safeInset(side) {
   homeBtn.addEventListener('pointercancel', () => { if (!dragging) return; dragging = false; homeBtn.classList.remove('drag'); try { homeBtn.releasePointerCapture(pid); } catch (_) { } positionHomeBtn(); });
   homeBtn.addEventListener('contextmenu', (e) => e.preventDefault());
 })();
-window.addEventListener('resize', () => { if (RT.app) positionHomeBtn(); });
+function onViewportChange() {
+  sizeStage();
+  if (!RT.app) return;
+  applyOrientation(RT.app); applyStageMode(RT.app); positionHomeBtn();
+}
+window.addEventListener('resize', onViewportChange);
+window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 60));
+sizeStage();
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && RT.app && !RT.suspended) suspendApp(); });
 
 /* ============================================================
@@ -1201,7 +1353,12 @@ async function init() {
     const [a, f, s, st] = await Promise.all([DB.all('apps'), DB.all('folders'), DB.all('settings'), DB.all('state')]);
     apps = a || []; folders = f || []; settings = Object.fromEntries((s || []).map((x) => [x.key, x.value]));
     for (const x of st || []) stateBytes.set(x.id, byteLen(JSON.stringify(x.ls || {})));
-    for (const app of apps) { app.settings = app.settings || { homeButton: true, safeArea: 'auto' }; app.auto = app.auto || { safeArea: 'pad', homeButton: true }; }
+    for (const app of apps) {
+      app.settings = app.settings || { homeButton: true, safeArea: 'auto' };
+      if (app.settings.fillBottom === undefined) app.settings.fillBottom = true;
+      if (!app.settings.orientation) app.settings.orientation = 'auto';
+      app.auto = app.auto || { safeArea: 'pad', homeButton: true };
+    }
   } catch (e) {
     console.error(e);
     $('#home').prepend(el('div', { class: 'banner' }, el('div', null, '⚠️'), el('div', null, el('b', null, 'Storage unavailable'), el('br'), 'This browser blocked IndexedDB (private browsing?). The Library needs it to keep your apps.')));
@@ -1215,4 +1372,4 @@ async function init() {
 init();
 
 // Expose a little for debugging / tests
-window.Library = { importHtmlText, importFiles, launchApp, suspendApp, resumeApp, quitApp, apps: () => apps, folders: () => folders, DB, RT, render, parseAppMeta, buildRunnableHtml, backupAll };
+window.Library = { importHtmlText, importFiles, launchApp, suspendApp, resumeApp, quitApp, apps: () => apps, folders: () => folders, DB, RT, render, parseAppMeta, buildRunnableHtml, backupAll, applyStageMode, applyOrientation, killInsets, sizeStage, saveApp };

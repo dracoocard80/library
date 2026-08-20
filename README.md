@@ -8,6 +8,9 @@ A tiny PWA (hosted on GitHub Pages) that works like a Steam-style library for si
 - **Per-app memory.** Every app gets its own private `localStorage`, `sessionStorage`, `indexedDB` and `caches` namespace, so ten copies of a game don't overwrite each other and none of them can touch the Library's data.
 - **Storage screen** showing what the Library plus each app takes up, persistent-storage status, and full backup / restore.
 - **Suspend/resume.** Tap ⌂ to go back to the home screen while the app keeps running; resume or quit from the banner.
+- **True full-screen.** Apps fill the whole display; only the top inset is (optionally) padded. Apps that leave their own gap above the home indicator get it removed automatically — see *Full-screen and safe areas* below.
+- **Per-app orientation lock** (Auto / Portrait / Landscape) that works on iOS, where the OS can't lock a web app.
+- **A design guide for LLMs** — Settings → *Design guide for LLMs* → **Copy all**, then paste it into a prompt. Also in the repo as [`LIBRARY-APP-GUIDE.md`](LIBRARY-APP-GUIDE.md).
 - **A one-line snippet** you can paste into any HTML app to give it a native "back to Library" button — see [`library-snippet.html`](library-snippet.html) or Settings → *For your HTML apps* inside the app.
 
 ## Deploy to GitHub Pages (once)
@@ -35,7 +38,7 @@ Then enable Pages as in step 3.
 
 - **＋** → *Choose .html file(s)* → pick one or more files. The Library reads `<title>` / `apple-mobile-web-app-title`, the `theme-color`, and any data-URL `apple-touch-icon` for the tile.
 - Tap a tile to run the app. The floating **⌂** goes back to the Library (drag it anywhere; it remembers). Two-finger hold on the screen for a second is the emergency exit if an app hides the button.
-- **Long-press** a tile: rename, change icon (upload / emoji / from HTML / letter), move to a folder, safe-area mode, update the HTML with a newer file (keeps saved data), export the HTML back out, export/import/reset the app's saved data, delete.
+- **Long-press** a tile: rename, change icon (upload / emoji / from HTML / letter), move to a folder, top inset, *Fill bottom edge*, orientation lock, update the HTML with a newer file (keeps saved data), export the HTML back out, export/import/reset the app's saved data, delete.
 - **Import the same app again** (same name) → you're asked whether to *update in place* (keeps its saved data) or add a copy. That's the workflow for "Claude regenerated my app".
 - The **storage pill** in the header opens the Storage screen (device usage, per-app breakdown, backup / restore).
 
@@ -53,10 +56,42 @@ Head tags read at import time:
 
 ```html
 <meta name="library-name" content="My App">
-<meta name="library-icon" content="🚀">           <!-- emoji, or data:image/... URL -->
+<meta name="library-icon" content="🚀">              <!-- emoji, or data:image/... URL -->
 <meta name="library-folder" content="Games">
-<meta name="library-home-button" content="off">  <!-- you draw your own button -->
+<meta name="library-orientation" content="portrait"> <!-- or landscape -->
+<meta name="library-home-button" content="off">      <!-- you draw your own button -->
+<meta name="library-fill-bottom" content="off">      <!-- keep your own home-indicator padding -->
 ```
+
+For anything more than this, hand your LLM [`LIBRARY-APP-GUIDE.md`](LIBRARY-APP-GUIDE.md) — it covers
+the iPhone 15 Pro Max metrics, where the Dynamic Island sits, blocking zoom, touch-control patterns,
+icon requirements, saving state, and this whole contract in one paste-able document.
+
+## Full-screen and safe areas
+
+Apps run edge-to-edge. Only the **top** inset is ever padded by the Library, and only when the app
+doesn't handle the notch itself (*Top inset: Auto/Full/Pad* per app). The **bottom is always
+full-bleed**.
+
+Many hand-written apps reserve `env(safe-area-inset-bottom)` for the home indicator — and some
+reserve it twice (once on a page wrapper, once on a bottom bar), leaving a fat dead strip. With
+**Fill bottom edge** on (the default) the Library re-declares every CSS rule in the app that
+mentions the insets it owns, with that inset replaced by `0px` — including `--var: env(...)`
+custom properties, so indirect uses collapse too. Rules that don't mention an inset are untouched,
+and turning the switch off restores the app's own layout instantly.
+
+The same mechanism prevents double-padding at the top: in *Pad* mode the Library zeroes the app's
+top/left/right insets and applies them itself.
+
+## Orientation lock
+
+iOS ignores the manifest `orientation` field for home-screen web apps and doesn't implement
+`screen.orientation.lock()`, so a per-app lock can't be delegated to the OS. Set **Orientation** to
+Portrait or Landscape and the Library rotates the app itself when the phone doesn't match: the app
+gets a genuine portrait (or landscape) viewport — `window.innerWidth/innerHeight` swap, media
+queries and layout all follow — displayed rotated, exactly like an OS lock. Safe-area padding is
+disabled while rotated (the device insets no longer line up with the app's edges). On platforms
+that do support the native API, that's used first.
 
 ## How it works / limits
 
@@ -88,4 +123,5 @@ Gotchas:
 | `sw.js` | service worker (offline cache) |
 | `manifest.webmanifest`, `icons/` | PWA metadata / icons (`tools/make_icons.py` regenerates them) |
 | `library-snippet.html` | copy-paste snippet for your apps |
+| `LIBRARY-APP-GUIDE.md` | the design guide to paste into an LLM (also shown in Settings) |
 | `.nojekyll` | tells GitHub Pages to serve files as-is |

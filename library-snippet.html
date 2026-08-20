@@ -23,6 +23,8 @@
       __LIBRARY__.setIcon(dataUrl);  // set this app's icon (data:image/... URL)
       __LIBRARY__.setName('Name');   // rename this app in the Library
       __LIBRARY__.appId;             // stable id of this app inside the Library
+      __LIBRARY__.ignoredInsets;     // safe-area edges the Library owns (they read as 0px)
+      __LIBRARY__.orientation;       // 'auto' | 'portrait' | 'landscape'
     }
 
   CSS hook: <html> gets class "in-library" while running inside the Library, e.g.
@@ -31,9 +33,11 @@
   Optional <head> tags the Library reads when you import the file:
 
     <meta name="library-name" content="My App">
-    <meta name="library-icon" content="🚀">           emoji, or a data:image/... URL
+    <meta name="library-icon" content="🚀">              emoji, or a data:image/... URL
     <meta name="library-folder" content="Games">
-    <meta name="library-home-button" content="off">  you supply your own button
+    <meta name="library-orientation" content="portrait"> lock this app to portrait / landscape
+    <meta name="library-home-button" content="off">      you supply your own button
+    <meta name="library-fill-bottom" content="off">      keep your own home-indicator padding
 
   It also reads <title>, <meta name="apple-mobile-web-app-title">, <meta name="theme-color">,
   and a data: URL <link rel="apple-touch-icon"> / <link rel="icon"> as the icon.

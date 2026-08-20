@@ -101,11 +101,14 @@ body.edit .tile .ic{animation:wiggle .35s ease-in-out infinite alternate}
 .banner .x{margin-left:auto;background:none;border:0;color:var(--muted);font-size:18px;line-height:1;padding:0 2px}
 
 /* ---------- Stage (running app) ---------- */
-#stage{position:fixed;inset:0;z-index:50;background:#000;display:flex;flex-direction:column;visibility:hidden;pointer-events:none}
+#stage{position:fixed;top:0;left:0;width:var(--vpw,100vw);height:var(--vph,100dvh);z-index:50;background:#000;display:flex;flex-direction:column;visibility:hidden;pointer-events:none;overflow:hidden}
 #stage.on{visibility:visible;pointer-events:auto}
-#stage.pad{padding:var(--sat) var(--sar) var(--sab) var(--sal)}
+/* Padding is top/sides only — the bottom is always full-bleed so apps reach the screen edge. */
+#stage.pad{padding:var(--sat) var(--sar) 0 var(--sal)}
 #frameWrap{flex:1;min-height:0;position:relative}
-#frameWrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#000}
+#stage.rot #frameWrap{position:absolute;flex:none}
+/* width/height:1px + min-*:100% is the iOS iframe sizing hack; it stops WebKit sizing the frame to its content. */
+#frameWrap iframe{position:absolute;top:0;left:0;width:1px;min-width:100%;height:1px;min-height:100%;border:0;display:block;background:#000}
 #loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--bg);color:var(--muted);font-size:13px;transition:opacity .25s;z-index:2}
 #loading.off{opacity:0;pointer-events:none}
 #loading .ic{width:72px;height:72px;border-radius:22%;overflow:hidden;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:36px}
