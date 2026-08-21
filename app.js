@@ -5,7 +5,7 @@
    data (or the Library's). */
 'use strict';
 
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -639,15 +639,17 @@ function displayInfo() {
   const portrait = window.innerHeight >= window.innerWidth;
   const screenLong = Math.max(sw, sh), screenShort = Math.min(sw, sh);
   const expectH = portrait ? screenLong : screenShort;
-  const missing = Math.max(0, expectH - window.innerHeight);
+  const gap = measureViewportGap();
+  const missing = Math.max(0, expectH - window.innerHeight - gap);
   const fullBleed = missing <= 2;
   return {
     standalone: IS_STANDALONE, ios: IS_IOS,
     inner: [window.innerWidth, window.innerHeight],
+    page: [vpW(), vpH()],
     screen: [sw, sh],
     visual: vv ? [Math.round(vv.width), Math.round(vv.height), Math.round(vv.offsetTop)] : null,
     insets: ins, dpr: window.devicePixelRatio || 1,
-    missing, fullBleed,
+    gap, missing, fullBleed,
   };
 }
 function diagnosticsText() {
@@ -656,6 +658,7 @@ function diagnosticsText() {
     'Library ' + APP_VERSION,
     'standalone: ' + d.standalone + '   iOS: ' + d.ios,
     'viewport:   ' + d.inner[0] + ' x ' + d.inner[1],
+    'page:       ' + d.page[0] + ' x ' + d.page[1] + '   (gap +' + d.gap + ')',
     'screen:     ' + d.screen[0] + ' x ' + d.screen[1] + '   dpr ' + d.dpr,
     'visual vp:  ' + (d.visual ? d.visual[0] + ' x ' + d.visual[1] + ' @' + d.visual[2] : 'n/a'),
     'safe areas: top ' + d.insets.top + '  bottom ' + d.insets.bottom + '  left ' + d.insets.left + '  right ' + d.insets.right,
@@ -664,15 +667,16 @@ function diagnosticsText() {
   ].join('\n');
 }
 function openViewportTest() {
-  const d = displayInfo(), o = $('#vptest');
   sizeStage();
+  const d = displayInfo(), o = $('#vptest');
   const good = d.fullBleed && (!d.standalone || d.insets.top > 0 || !IS_IOS);
   o.innerHTML = '';
   o.append(el('div', { class: 'band top' }, `safe-area-inset-top = ${d.insets.top}pt`));
   const mid = el('div', { class: 'mid' });
   mid.append(
     el('div', { class: 'verdict ' + (good ? 'ok' : 'bad') }, good
-      ? 'Full-bleed ✓ — the pink border should touch all four screen edges.'
+      ? (d.gap ? 'Full-bleed ✓ — iOS reports a viewport ' + d.gap + 'pt short of the screen (its translucent-status-bar bug); the Library compensates. The pink border should touch all four screen edges.'
+        : 'Full-bleed ✓ — the pink border should touch all four screen edges.')
       : 'Not full-bleed — iOS is keeping ' + d.missing + 'pt of the screen outside the page. Black strips outside the pink border cannot be reached by any app.'),
     el('div', null, 'If you see black OUTSIDE the pink border, the web view does not cover the screen.'),
     el('pre', null, diagnosticsText()),
@@ -1089,12 +1093,30 @@ function killInsets(app) {
   if (!app.settings || app.settings.fillBottom !== false) k.push('bottom');
   return k;
 }
-/* The stage is sized from innerWidth/innerHeight rather than inset:0 so it always
+/* iOS standalone web apps with a translucent status bar get a layout viewport that is
+   (screen height - top inset) tall while the web view itself covers the whole screen: the
+   document is shifted up under the status bar and a dead strip that tall is left at the
+   bottom. Detect exactly that signature — the shortfall has to match the top inset — and
+   report the true size, so the stage and every bottom-anchored control reach the real edge.
+   In landscape the top inset is 0, so nothing is applied (and nothing was ever wrong). */
+let VGAP = 0;
+function measureViewportGap() {
+  if (!IS_STANDALONE) return 0;
+  const portrait = window.innerHeight >= window.innerWidth;
+  const expect = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+  const gap = Math.round(expect - window.innerHeight);
+  const top = safeInset('top');
+  return (gap > 0 && top > 0 && Math.abs(gap - top) <= 2) ? gap : 0;
+}
+const vpW = () => window.innerWidth;
+const vpH = () => window.innerHeight + VGAP;
+/* The stage is sized from the measured viewport rather than inset:0 so it always
    covers the whole screen, whatever iOS does with fixed positioning. */
 function sizeStage() {
-  const r = document.documentElement.style;
+  const r = document.documentElement.style, gap = VGAP = measureViewportGap();
+  r.setProperty('--vgap', gap + 'px');
   r.setProperty('--vpw', window.innerWidth + 'px');
-  r.setProperty('--vph', window.innerHeight + 'px');
+  r.setProperty('--vph', (window.innerHeight + gap) + 'px');
 }
 function deviceAngle() {
   try { if (screen.orientation && typeof screen.orientation.angle === 'number') return ((screen.orientation.angle % 360) + 360) % 360; } catch (e) { }
@@ -1106,7 +1128,7 @@ function deviceAngle() {
 function applyOrientation(app) {
   const wrap = $('#frameWrap'), stage = $('#stage');
   const want = (app && app.settings && app.settings.orientation) || 'auto';
-  const W = window.innerWidth, H = window.innerHeight, isPortrait = H >= W;
+  const W = vpW(), H = vpH(), isPortrait = H >= W;
   const wantPortrait = want === 'portrait' ? true : want === 'landscape' ? false : isPortrait;
   const rot = wantPortrait !== isPortrait;
   RT.rotated = rot;
@@ -1283,7 +1305,7 @@ function updateHomeBtn() {
 function armDim() { homeBtn.classList.remove('dim'); clearTimeout(dimTimer); dimTimer = setTimeout(() => homeBtn.classList.add('dim'), 2500); }
 function positionHomeBtn() {
   const pos = (RT.app && RT.app.settings.homeBtnPos) || settings.homeBtnPos || { side: 'right', y: 0.6 };
-  const W = window.innerWidth, H = window.innerHeight, S = 40, m = 6;
+  const W = vpW(), H = vpH(), S = 40, m = 6;
   const sat = safeInset('top'), sab = safeInset('bottom');
   const y = Math.min(H - sab - S - m, Math.max(sat + m, pos.y * H));
   homeBtn.style.top = y + 'px';
@@ -1310,7 +1332,7 @@ function safeInset(side) {
     if (!dragging) return; dragging = false; homeBtn.classList.remove('drag');
     try { homeBtn.releasePointerCapture(pid); } catch (_) { }
     if (!moved) { suspendApp(); return; }
-    const W = window.innerWidth, H = window.innerHeight;
+    const W = vpW(), H = vpH();
     const cx = homeBtn.offsetLeft + 20;
     const pos = { side: cx < W / 2 ? 'left' : 'right', y: Math.min(0.95, Math.max(0.02, homeBtn.offsetTop / H)) };
     if (RT.app) { RT.app.settings.homeBtnPos = pos; saveApp(RT.app); }

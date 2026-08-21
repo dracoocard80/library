@@ -170,6 +170,27 @@ If you have a bottom bar whose buttons must stay clear of the home-indicator swi
 `padding-bottom: 10px` (a plain constant) rather than the inset, or set
 `<meta name="library-fill-bottom" content="off">`.
 
+### The iOS "gap at the bottom" bug (only when run standalone)
+
+If you add a file to the Home Screen **as its own web app** with
+`apple-mobile-web-app-status-bar-style: black-translucent`, iOS shifts the document up under the
+status bar but keeps the layout viewport at *screen height − status-bar height*. On a 15 Pro Max
+that's `window.innerHeight === 873` on a 932pt screen, and a dead strip 59pt tall is left at the
+bottom (portrait only — in landscape the top inset is 0, so nothing is wrong). `100%`, `100vh`,
+`100dvh` and `position:fixed;bottom:0` all follow the short viewport, so the strip stays empty.
+
+Cover it by extending the root by the top inset:
+
+```css
+html { min-height: calc(100% + env(safe-area-inset-top)); }
+/* and for a full-screen fixed layout: */
+#app { height: calc(100% + env(safe-area-inset-top)); }
+```
+
+Anything anchored to the bottom needs the same shift: `bottom: calc(0px - env(safe-area-inset-top))`.
+Inside Library this is measured and handled for you, so an app that does nothing about it still
+fills the screen; the fix above only matters for files you install directly.
+
 ---
 
 ## 6. Touch controls
