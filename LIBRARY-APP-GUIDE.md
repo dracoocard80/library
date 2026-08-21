@@ -1,13 +1,14 @@
 # Building HTML apps for Library (iPhone 15 Pro Max)
 
-Paste this whole file into an LLM before asking it to build or modify a single-file HTML app.
-It describes the target device, the rules a file must follow, and the small contract that makes
-the app talk to **Library** — a PWA that stores `.html` files on the phone and runs them
-full-screen, each with its own private storage.
+You are writing a single-file HTML app that will run inside **Library** — a PWA on an iPhone 15
+Pro Max that keeps `.html` files on the device and runs each one full-screen with its own private
+storage. This is the spec for that target: the real dimensions of the device, the rules a file has
+to follow, and the contract that connects an app to Library. Apply it to every app you write or
+modify here unless the request explicitly says otherwise.
 
 ---
 
-## 0. The short version (paste this if you only paste one thing)
+## 0. The whole spec in one paragraph
 
 > Build a **single self-contained `.html` file** — all CSS, JS, images and fonts inline, no
 > network requests, works offline. Target an **iPhone 15 Pro Max in a home-screen PWA**:
@@ -107,7 +108,8 @@ colour is not one of them**; `theme_color` in the manifest is ignored on iOS. Th
 your own colour up there is `black-translucent`, where the page extends under the clock and paints
 that strip itself.
 
-Library exposes both, per app (long-press the tile → **Status bar**, or ask for it in the file):
+Both are available per app. Request one from the file, or leave it out and Library's own
+per-app setting decides:
 
 ```html
 <meta name="library-status-bar" content="fill">   <!-- or "bar" (the default) -->
@@ -276,7 +278,7 @@ never composited, so no CSS trick reaches it. Portrait only; in landscape the to
 nothing is wrong.
 
 Use `content="black"` (as in the head block above). iOS draws the status bar itself and your page
-gets everything below it, down to the real bottom edge. This only matters for files you install to
+gets everything below it, down to the real bottom edge. This only matters for a file installed to
 the Home Screen directly — inside Library the shell decides, and it asks for `black`.
 
 ---
@@ -511,7 +513,7 @@ draw();
 
 ---
 
-## 11. Checklist before handing the file over
+## 11. Check before you return the file
 
 - [ ] One file, opens correctly by double-clicking it — no console errors, no network requests.
 - [ ] No horizontal scrollbar; nothing clipped at 430 × 932 **or** 375 × 667.
