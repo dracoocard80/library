@@ -5,7 +5,7 @@
    data (or the Library's). */
 'use strict';
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -179,8 +179,10 @@ function parseAppMeta(html, filename) {
   const fillBottom = !/^(off|false|no|0)$/i.test(metaC('library-fill-bottom') || 'on');
   const o = (metaC('library-orientation') || '').toLowerCase();
   const orientation = /portrait/.test(o) ? 'portrait' : /landscape/.test(o) ? 'landscape' : 'auto';
+  const sb = (metaC('library-status-bar') || '').toLowerCase();
+  const statusBar = /fill|translucent|under/.test(sb) ? 'translucent' : /bar|black|solid/.test(sb) ? 'black' : 'auto';
   const folder = metaC('library-folder') || '';
-  return { name, icon, themeColor, safeArea, homeButton, fillBottom, orientation, folder, title: titleTxt };
+  return { name, icon, themeColor, safeArea, homeButton, fillBottom, orientation, statusBar, folder, title: titleTxt };
 }
 const PALETTE = [['#3a6df0', '#7aa2ff'], ['#f0663a', '#ffb03a'], ['#2fbf71', '#63f2a0'], ['#b04ae0', '#e08cff'], ['#e04a7a', '#ff8cb0'], ['#20a4b8', '#5fe3ff'], ['#c9a227', '#ffe27a'], ['#5b6478', '#9aa4b8']];
 function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
@@ -230,7 +232,7 @@ async function createApp(html, filename, meta) {
     folderId: meta.folder ? (await ensureFolder(meta.folder)).id : (view.folder || null),
     createdAt: Date.now(), updatedAt: Date.now(), lastOpened: 0, htmlBytes: byteLen(html), sourceName: filename || '',
     auto: { safeArea: meta.safeArea, homeButton: meta.homeButton },
-    settings: { homeButton: meta.homeButton, safeArea: 'auto', homeBtnPos: null, fillBottom: meta.fillBottom, orientation: meta.orientation },
+    settings: { homeButton: meta.homeButton, safeArea: 'auto', homeBtnPos: null, fillBottom: meta.fillBottom, orientation: meta.orientation, statusBar: meta.statusBar },
   };
   if (app.icon.type === 'img') { const n = await normalizeIconDataUrl(app.icon.src); if (n) app.icon.src = n; else app.icon = { type: 'letter' }; }
   await DB.multi(['apps', 'files', 'state'], (s) => { s.apps.put(app); s.files.put({ id: app.id, html }); s.state.put({ id: app.id, ls: {}, updatedAt: Date.now() }); });
@@ -244,6 +246,7 @@ async function replaceAppHtml(app, html, filename) {
   if (meta.homeButton === false) app.settings.homeButton = false; // the file explicitly opts out
   if (meta.fillBottom === false) app.settings.fillBottom = false;
   if (meta.orientation && meta.orientation !== 'auto') app.settings.orientation = meta.orientation;
+  if (meta.statusBar && meta.statusBar !== 'auto') app.settings.statusBar = meta.statusBar;
   if ((!app.icon || app.icon.type === 'letter' || app.icon.from === 'html') && meta.icon) {
     app.icon = { ...meta.icon };
     if (app.icon.type === 'img') { const n = await normalizeIconDataUrl(app.icon.src); if (n) app.icon.src = n; else app.icon = { type: 'letter' }; }
@@ -529,6 +532,7 @@ async function openAppSheet(app) {
       row('Floating home button', switchBtn(app.settings.homeButton !== false, async (v) => { app.settings.homeButton = v; await saveApp(app); if (isRunning) updateHomeBtn(); }), { sub: 'A draggable ⌂ button over the app. Emergency exit while it is off: hold two fingers still on the app for 1.5s.' }),
       row('Top inset', segControl([{ label: 'Auto', value: 'auto' }, { label: 'Full', value: 'full' }, { label: 'Pad', value: 'pad' }], app.settings.safeArea || 'auto', async (v) => { app.settings.safeArea = v; await saveApp(app); if (isRunning) { applyOrientation(app); applyStageMode(app); } openAppSheet(app); }), { sub: `Keeps the app clear of the Dynamic Island. Auto → ${eff === 'full' ? 'full (this app handles the notch itself)' : 'pad (the Library holds it below the notch)'}. The bottom edge is always full-bleed.` }),
       row('Fill bottom edge', switchBtn(app.settings.fillBottom !== false, async (v) => { app.settings.fillBottom = v; await saveApp(app); if (isRunning) applyStageMode(app); }), { sub: 'Ignores the app\'s own home-indicator padding so it reaches the bottom of the screen. Turn off if an app\'s bottom controls end up under the home bar.' }),
+      row('Status bar', segControl([{ label: 'Auto', value: 'auto' }, { label: 'Bar', value: 'black' }, { label: 'Fill', value: 'translucent' }], app.settings.statusBar || 'auto', async (v) => { app.settings.statusBar = v; await saveApp(app); }), { sub: `Fill lets the app paint behind the clock — iOS then leaves 59pt at the bottom of the screen outside the page. Auto → ${globalStatusBar() === 'translucent' ? 'fill' : 'bar'} (Settings). Opening the app switches mode, which reloads the Library.` }),
       row('Orientation', segControl([{ label: 'Auto', value: 'auto' }, { label: 'Portrait', value: 'portrait' }, { label: 'Landscape', value: 'landscape' }], app.settings.orientation || 'auto', async (v) => { app.settings.orientation = v; await saveApp(app); if (isRunning) { tryNativeLock(v); applyOrientation(app); applyStageMode(app); positionHomeBtn(); } }), { sub: 'iOS can\'t lock a web app to one orientation, so the Library rotates the app itself when you turn the phone. Safe-area padding is off while rotated.' }),
     ));
     b.append(section(
@@ -659,6 +663,7 @@ function diagnosticsText() {
     'screen:     ' + d.screen[0] + ' x ' + d.screen[1] + '   dpr ' + d.dpr,
     'visual vp:  ' + (d.visual ? d.visual[0] + ' x ' + d.visual[1] + ' @' + d.visual[2] : 'n/a'),
     'safe areas: top ' + d.insets.top + '  bottom ' + d.insets.bottom + '  left ' + d.insets.left + '  right ' + d.insets.right,
+    'status bar: ' + statusBarMode(),
     'system bar: ' + d.missing + 'pt',
     'full-bleed: ' + (d.fullBleed ? 'YES' : (d.insets.top === 0 ? 'BELOW STATUS BAR' : 'NO')),
   ].join('\n');
@@ -699,6 +704,10 @@ function openSettingsSheet() {
     ));
     b.append(section(
       row('Storage & backups', el('span', { class: 'chev' }, '›'), { btn: true, onclick: openStorageSheet }),
+      row('Status bar', segControl([{ label: 'Bar', value: 'black' }, { label: 'Fill', value: 'translucent' }], globalStatusBar(), async (v) => {
+        await setSetting('statusBar', v);
+        if (v !== statusBarMode()) switchStatusBar(v, null);
+      }), { sub: 'Bar: iOS draws a black status bar and the app reaches the bottom edge. Fill: apps paint behind the clock, and iOS keeps the bottom 59pt of the screen outside the page instead. Individual apps can override this.' }),
     ));
     b.append(el('h3', { style: 'font-size:14px;color:var(--muted);margin:18px 2px 8px;text-transform:uppercase;letter-spacing:.06em' }, 'For your HTML apps'));
     b.append(section(row('Design guide for LLMs', el('span', { class: 'chev' }, '›'), { btn: true, sub: 'Everything an LLM needs to build apps that fit this phone and talk to the Library. Copy it and paste it into your prompt.', onclick: openGuideSheet })));
@@ -762,6 +771,7 @@ const SNIPPET_META = `<meta name="library-name" content="My App">
 <meta name="library-icon" content="🚀">            <!-- emoji, or a data:image/... URL -->
 <meta name="library-folder" content="Games">
 <meta name="library-orientation" content="portrait">  <!-- or landscape -->
+<meta name="library-status-bar" content="fill">   <!-- paint behind the clock; or "bar" -->
 <meta name="library-home-button" content="off">   <!-- you supply your own button -->
 <meta name="library-fill-bottom" content="off">   <!-- keep your own home-indicator padding -->`;
 
@@ -799,7 +809,8 @@ async function restoreBackup(text) {
       if (typeof html !== 'string' || !meta.id || !meta.name) { failed++; continue; }
       meta.settings = meta.settings || { homeButton: true, safeArea: 'auto' };
       if (meta.settings.fillBottom === undefined) meta.settings.fillBottom = true;
-      if (!meta.settings.orientation) meta.settings.orientation = 'auto'; meta.auto = meta.auto || parseAppMeta(html, meta.sourceName);
+      if (!meta.settings.orientation) meta.settings.orientation = 'auto';
+      if (!meta.settings.statusBar) meta.settings.statusBar = 'auto'; meta.auto = meta.auto || parseAppMeta(html, meta.sourceName);
       meta.htmlBytes = byteLen(html);
       await DB.multi(['apps', 'files', 'state'], (s) => { s.apps.put(meta); s.files.put({ id: meta.id, html }); s.state.put({ id: meta.id, ls: ls || {}, updatedAt: Date.now() }); });
       const i = apps.findIndex((x) => x.id === meta.id); if (i >= 0) apps[i] = meta; else apps.push(meta);
@@ -1162,6 +1173,8 @@ function launchApp(id) {
     const app = appById(id); if (!app) return;
     if (quitting) await quitting;
     if (RT.app && RT.app.id === id) { resumeApp(); return; }
+    // The status-bar mode is fixed at page load, so an app that wants the other one reloads into it.
+    if (appStatusBar(app) !== statusBarMode()) { await switchStatusBar(appStatusBar(app), app.id); return; }
     if (RT.app) await quitApp();
     const file = await DB.get('files', id).catch(() => null);
     if (!file) { toast('The HTML for this app is missing'); return; }
@@ -1251,6 +1264,7 @@ function quitApp() {
     RT.rotated = false; $('#stage').classList.remove('rot'); $('#frameWrap').style.cssText = ''; tryNativeLock('auto');
     setSetting('running', null);
     hideStage(); updateHomeBtn(); render();
+    if (statusBarMode() !== globalStatusBar()) switchStatusBar(globalStatusBar(), null);
   })().finally(() => { quitting = null; });
   return quitting;
 }
@@ -1356,6 +1370,36 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && RT.app && 
 /* ============================================================
    Service worker
    ============================================================ */
+/* 'black'      — iOS draws an opaque status bar; the page starts below it and reaches the bottom edge.
+   'translucent'— the page extends under the clock and paints that strip itself, and iOS then leaves
+                  the bottom 59pt of the screen outside the page (its own defect, nothing can reach it).
+   The mode is baked into the HTML by the service worker, so switching means reloading the shell. */
+const statusBarMode = () => {
+  const m = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  return m && /translucent/i.test(m.content) ? 'translucent' : 'black';
+};
+const globalStatusBar = () => (settings.statusBar === 'translucent' ? 'translucent' : 'black');
+const appStatusBar = (app) => {
+  const v = app && app.settings && app.settings.statusBar;
+  return (v === 'black' || v === 'translucent') ? v : globalStatusBar();
+};
+/* Ask the worker to serve the shell in `mode` from now on, then reload into it.
+   `launchAfter` is re-opened automatically once the new document boots. */
+async function switchStatusBar(mode, launchAfter) {
+  if (!navigator.serviceWorker || !navigator.serviceWorker.controller) { toast('Needs the offline cache — reopen the Library and try again'); return false; }
+  if (RT.app) await quitApp();
+  await setSetting('pendingLaunch', launchAfter || null);
+  try {
+    await new Promise((res, rej) => {
+      const ch = new MessageChannel();
+      const t = setTimeout(() => rej(new Error('timeout')), 3000);
+      ch.port1.onmessage = () => { clearTimeout(t); res(); };
+      navigator.serviceWorker.controller.postMessage({ type: 'STATUS_BAR', value: mode }, [ch.port2]);
+    });
+  } catch (e) { await setSetting('pendingLaunch', null); toast('Could not switch the status bar'); return false; }
+  location.reload();
+  return true;
+}
 const SW = { reg: null, updateShown: false, reloadRequested: false, lastCheck: 0 };
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
@@ -1434,6 +1478,7 @@ async function init() {
       app.settings = app.settings || { homeButton: true, safeArea: 'auto' };
       if (app.settings.fillBottom === undefined) app.settings.fillBottom = true;
       if (!app.settings.orientation) app.settings.orientation = 'auto';
+      if (!app.settings.statusBar) app.settings.statusBar = 'auto';
       app.auto = app.auto || { safeArea: 'pad', homeButton: true };
     }
   } catch (e) {
@@ -1443,6 +1488,10 @@ async function init() {
   if (IS_IOS && !IS_STANDALONE && !settings.installBannerDismissed) $('#installBanner').classList.remove('hidden');
   if (settings.running && appById(settings.running)) reopenApp = appById(settings.running);
   render();
+  const pending = settings.pendingLaunch && appById(settings.pendingLaunch);
+  if (pending) { await setSetting('pendingLaunch', null); reopenApp = null; setTimeout(() => launchApp(pending.id), 60); }
+  // The worker's stored mode lives in the versioned cache, so re-assert it after an update.
+  if (navigator.serviceWorker) navigator.serviceWorker.ready.then((r) => { if (r.active) r.active.postMessage({ type: 'STATUS_BAR', value: statusBarMode() }); }).catch(() => { });
   // Cheap belt-and-braces: on iOS this is granted only for installed Home Screen apps; re-asking each launch just refreshes the marker.
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => false);
 }

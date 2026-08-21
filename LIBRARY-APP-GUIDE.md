@@ -103,12 +103,38 @@ edges** clears it by ~11 pt. So:
 ### The status-bar strip at the top
 
 iOS gives web apps exactly three choices — `default`, `black`, `black-translucent` — and **a custom
-colour is not one of them**; `theme_color` in the manifest is ignored on iOS. Library uses `black`,
-so the top ~59 pt is a solid black bar drawn by the system, your page starts below it, and you
-cannot paint into it.
+colour is not one of them**; `theme_color` in the manifest is ignored on iOS. The only way to get
+your own colour up there is `black-translucent`, where the page extends under the clock and paints
+that strip itself.
 
-The way to make that look deliberate is to let your app *continue* into it — put a dark band at the
-top of your own layout so the seam disappears:
+Library exposes both, per app (long-press the tile → **Status bar**, or ask for it in the file):
+
+```html
+<meta name="library-status-bar" content="fill">   <!-- or "bar" (the default) -->
+```
+
+| | **Bar** (default) | **Fill** |
+|---|---|---|
+| Top ~59 pt | solid black, drawn by iOS | **your app paints it** (clock and camera sit on top) |
+| Bottom 59 pt | yours, down to the screen edge | iOS keeps it outside the page — a black strip |
+| `env(safe-area-inset-top)` | `0` | `59pt` — **pad your UI by it** |
+| Usable area | 430 × 873, all of it clean | 430 × 873, top 59 pt partly behind the clock |
+
+It is a straight trade — iOS costs you 59 pt either way, and you choose which end. Pick **Fill** for
+an app whose artwork or colour should run to the top of the screen; pick **Bar** for anything with
+controls or text near the bottom.
+
+**Writing an app that works in both:** put your background/artwork edge to edge, and offset only the
+UI by `env(safe-area-inset-top)` — that is 0 in Bar mode and 59 pt in Fill mode, so one stylesheet
+covers both:
+
+```css
+#app { background: var(--theme); }               /* runs edge to edge in both modes */
+#chrome { padding-top: env(safe-area-inset-top, 0px); }  /* 0 in Bar, 59pt in Fill */
+```
+
+In **Bar** mode the way to make the seam disappear is to let your app *continue* into it — put a
+dark band at the top of your own layout:
 
 ```css
 /* top of the app reads as one piece with the black status bar */
@@ -121,9 +147,9 @@ header {
 body { background: #0b0d12; }             /* keep the first screenful dark */
 ```
 
-A dark app therefore looks seamless. A light-themed app will show a black bar above it — either
-accept it as a title bar, or give the app a dark header of its own so the transition is intentional
-rather than accidental.
+A dark app therefore looks seamless in Bar mode. A light-themed app will show a black bar above it —
+either accept it as a title bar, give the app a dark header of its own, or switch that app to **Fill**
+so it paints the strip in its own colour.
 
 **The padding fallback.** Always write the top offset as `env(safe-area-inset-top)` rather than a
 hard-coded 59 pt. Inside Library it evaluates to 0 (the system bar already provides the clearance,
@@ -342,6 +368,7 @@ html.in-library .only-standalone { display: none; }
 | Tag | Effect |
 |---|---|
 | `<meta name="library-name" content="…">` | Tile name (else `apple-mobile-web-app-title`, else `<title>`) |
+| `<meta name="library-status-bar" content="fill">` | Paint behind the clock (see *The status-bar strip*); `bar` for the default |
 | `<meta name="library-icon" content="🎲">` | Tile icon: one or two emoji, **or** a `data:image/…` URL |
 | `<meta name="library-folder" content="Games">` | Import straight into that folder (created if needed) |
 | `<meta name="library-orientation" content="portrait">` | Lock this app to `portrait` / `landscape` |

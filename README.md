@@ -93,9 +93,17 @@ measured on-device you get `viewport: 430 x 873` on a 932pt screen with `top 59 
 insets, and a dead strip along the bottom in portrait. It only affects portrait, because the top
 inset is 0 in landscape.
 
-Nothing in CSS can reach that strip, so the Library asks for `black` instead. iOS then draws the
+Nothing in CSS can reach that strip, so the Library asks for `black` by default. iOS then draws the
 status bar itself and hands the page everything below it, all the way to the bottom edge — which
-is the half that matters for apps. Expected readings in Settings → **Full-screen test**:
+is the half that matters for most apps.
+
+Because the strip can only ever be black *or* app-painted, both are offered: **Settings → Status
+bar** sets the default and each app can override it (long-press → *Status bar*, or
+`<meta name="library-status-bar" content="fill">` in the file). **Fill** uses `black-translucent`, so
+the app paints behind the clock and iOS takes the bottom 59pt instead — the same 59pt either way,
+at whichever end suits the app. iOS only reads the status-bar style while parsing the page, so
+opening an app that wants the other mode reloads the Library into it (and reopens the app for you);
+quitting returns to your default. Expected readings in Settings → **Full-screen test**:
 
 | | portrait | landscape |
 |---|---|---|
