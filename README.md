@@ -83,19 +83,29 @@ and turning the switch off restores the app's own layout instantly.
 The same mechanism prevents double-padding at the top: in *Pad* mode the Library zeroes the app's
 top/left/right insets and applies them itself.
 
-### If the app is not full-screen (black strips at the top/bottom)
+### Why the status bar is a solid bar, not translucent
 
-Settings → **Full-screen test** draws a pink border on the true edges of the web view and prints
-the viewport / safe-area numbers. On an iPhone 15 Pro Max home-screen app you want
-`viewport: 430 x 932`, `safe areas: top 59 bottom 34`, `full-bleed: YES`. If you instead see
-something like `430 x 839` with all insets `0`, iOS is laying the web view out *inside* the safe
-area: the strips are outside the page and no CSS in the Library or in an app can paint them.
+`apple-mobile-web-app-status-bar-style: black-translucent` sounds like the full-screen option —
+content draws under the status bar — but on iOS it comes with a defect: the layout viewport stays
+at *screen height − status bar* while being **anchored at the top**, so the bottom of the screen
+(59pt on a 15 Pro Max) is never composited. Anything drawn there is clipped, not merely absent:
+measured on-device you get `viewport: 430 x 873` on a 932pt screen with `top 59 / bottom 34`
+insets, and a dead strip along the bottom in portrait. It only affects portrait, because the top
+inset is 0 in landscape.
 
-The cause is a declared theme colour: since iOS 16.4 a manifest `theme_color` (or a page
-`<meta name="theme-color">`) makes iOS paint the status-bar strip itself and drop the
-`black-translucent` full-bleed behaviour. Neither is declared here any more, which is what
-restores the full-screen viewport. iOS snapshots the manifest when you add the icon, so if the
-strips survive an update: **Storage → Back up everything** first (removing the icon deletes the
+Nothing in CSS can reach that strip, so the Library asks for `black` instead. iOS then draws the
+status bar itself and hands the page everything below it, all the way to the bottom edge — which
+is the half that matters for apps. Expected readings in Settings → **Full-screen test**:
+
+| | portrait | landscape |
+|---|---|---|
+| viewport | 430 x 873 | 932 x 430 |
+| safe areas | top 0, bottom 34 | left/right 59, bottom 20 |
+| verdict | *Full-bleed below the status bar ✓* | *Full-bleed ✓* |
+
+The pink border should touch the left, right and bottom edges, with the green home-indicator band
+visible at the bottom. iOS may snapshot the status-bar style when the icon is added, so if the
+strip survives an update: **Storage → Back up everything** first (removing the icon deletes the
 data), then delete the Home Screen icon, re-add it from Safari, and restore the backup.
 
 ## Orientation lock
@@ -117,7 +127,7 @@ that do support the native API, that's used first.
 - If iOS kills the Library in the background, it reloads on return and offers to **Reopen** the app you were in. Apps that only keep state in memory lose it (same as any web page); apps that save to `localStorage` are fine.
 - iOS keeps the storage of Home Screen web apps as long as the app stays installed (it's exempt from Safari's 7-day cleanup and, on iOS 17+, gets the full storage quota — up to 60% of the disk). Deleting the Home Screen icon deletes the data, and *Clear History and Website Data* may too — use **Storage → Back up everything** occasionally (one JSON file with every app + its saved data) and keep it in Files/iCloud.
 - Sharing/exporting uses the iOS share sheet ("Save to Files" etc.). Note that if one of *your apps* triggers a file download (`<a download>`) inside a Home Screen web app, iOS shows a preview/"Open in…" sheet that's awkward to leave — that's an iOS thing; prefer `navigator.share` in your apps.
-- The status bar style is fixed by the Library (`black-translucent`, white text). Apps that handle the notch themselves (`viewport-fit=cover` / `env(safe-area-inset-*)`) run full-bleed and see the real insets; others are automatically padded. Override per app under *Safe area*.
+- The status bar is drawn by iOS above the page (`black`, white text) — see *Why the status bar is a solid bar* above. Apps therefore see `env(safe-area-inset-top): 0` and start right below it; the bottom, left and right insets are real. Override the top handling per app under *Top inset*.
 
 ## Updating the Library itself
 

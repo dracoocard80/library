@@ -5,7 +5,7 @@
    data (or the Library's). */
 'use strict';
 
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.2.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -639,17 +639,15 @@ function displayInfo() {
   const portrait = window.innerHeight >= window.innerWidth;
   const screenLong = Math.max(sw, sh), screenShort = Math.min(sw, sh);
   const expectH = portrait ? screenLong : screenShort;
-  const gap = measureViewportGap();
-  const missing = Math.max(0, expectH - window.innerHeight - gap);
+  const missing = viewportShortfall();
   const fullBleed = missing <= 2;
   return {
     standalone: IS_STANDALONE, ios: IS_IOS,
     inner: [window.innerWidth, window.innerHeight],
-    page: [vpW(), vpH()],
     screen: [sw, sh],
     visual: vv ? [Math.round(vv.width), Math.round(vv.height), Math.round(vv.offsetTop)] : null,
     insets: ins, dpr: window.devicePixelRatio || 1,
-    gap, missing, fullBleed,
+    missing, fullBleed,
   };
 }
 function diagnosticsText() {
@@ -658,27 +656,31 @@ function diagnosticsText() {
     'Library ' + APP_VERSION,
     'standalone: ' + d.standalone + '   iOS: ' + d.ios,
     'viewport:   ' + d.inner[0] + ' x ' + d.inner[1],
-    'page:       ' + d.page[0] + ' x ' + d.page[1] + '   (gap +' + d.gap + ')',
     'screen:     ' + d.screen[0] + ' x ' + d.screen[1] + '   dpr ' + d.dpr,
     'visual vp:  ' + (d.visual ? d.visual[0] + ' x ' + d.visual[1] + ' @' + d.visual[2] : 'n/a'),
     'safe areas: top ' + d.insets.top + '  bottom ' + d.insets.bottom + '  left ' + d.insets.left + '  right ' + d.insets.right,
-    'unreachable: ' + d.missing + 'pt',
-    'full-bleed: ' + (d.fullBleed ? 'YES' : 'NO'),
+    'system bar: ' + d.missing + 'pt',
+    'full-bleed: ' + (d.fullBleed ? 'YES' : (d.insets.top === 0 ? 'BELOW STATUS BAR' : 'NO')),
   ].join('\n');
 }
 function openViewportTest() {
   sizeStage();
   const d = displayInfo(), o = $('#vptest');
-  const good = d.fullBleed && (!d.standalone || d.insets.top > 0 || !IS_IOS);
+  // Three outcomes: the page owns the whole screen; the page owns everything below a
+  // system-drawn status bar (what we want on iOS); or a strip is genuinely unreachable.
+  const systemBar = !d.fullBleed && d.insets.top === 0 && d.missing > 0;
+  const good = d.fullBleed || systemBar;
   o.innerHTML = '';
   o.append(el('div', { class: 'band top' }, `safe-area-inset-top = ${d.insets.top}pt`));
   const mid = el('div', { class: 'mid' });
   mid.append(
-    el('div', { class: 'verdict ' + (good ? 'ok' : 'bad') }, good
-      ? (d.gap ? 'Full-bleed ✓ — iOS reports a viewport ' + d.gap + 'pt short of the screen (its translucent-status-bar bug); the Library compensates. The pink border should touch all four screen edges.'
-        : 'Full-bleed ✓ — the pink border should touch all four screen edges.')
-      : 'Not full-bleed — iOS is keeping ' + d.missing + 'pt of the screen outside the page. Black strips outside the pink border cannot be reached by any app.'),
-    el('div', null, 'If you see black OUTSIDE the pink border, the web view does not cover the screen.'),
+    el('div', { class: 'verdict ' + (good ? 'ok' : 'bad') },
+      systemBar ? 'Full-bleed below the status bar ✓ — iOS draws the top ' + d.missing + 'pt itself; the page owns everything below it, down to the bottom edge.'
+        : d.fullBleed ? 'Full-bleed ✓ — the pink border should touch all four screen edges.'
+          : 'Not full-bleed — ' + d.missing + 'pt of the screen is outside the page and cannot be reached by any app.'),
+    el('div', null, systemBar
+      ? 'The pink border should touch the left, right and BOTTOM edges. The green band below marks the home indicator.'
+      : 'If you see black OUTSIDE the pink border, the web view does not cover the screen.'),
     el('pre', null, diagnosticsText()),
     el('button', { onclick: async () => { try { await navigator.clipboard.writeText(diagnosticsText()); toast('Diagnostics copied'); } catch (e) { toast('Select the text above to copy'); } } }, 'Copy diagnostics'),
     el('button', { onclick: () => o.classList.remove('on') }, 'Close'),
@@ -1099,24 +1101,22 @@ function killInsets(app) {
    bottom. Detect exactly that signature — the shortfall has to match the top inset — and
    report the true size, so the stage and every bottom-anchored control reach the real edge.
    In landscape the top inset is 0, so nothing is applied (and nothing was ever wrong). */
-let VGAP = 0;
-function measureViewportGap() {
-  if (!IS_STANDALONE) return 0;
+/* How much shorter the page is than the screen. Diagnostics only: iOS clips anything drawn
+   below the layout viewport instead of compositing it, so this can't be painted into — the
+   only lever is which status-bar style the web app asks for (see index.html). */
+function viewportShortfall() {
   const portrait = window.innerHeight >= window.innerWidth;
   const expect = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-  const gap = Math.round(expect - window.innerHeight);
-  const top = safeInset('top');
-  return (gap > 0 && top > 0 && Math.abs(gap - top) <= 2) ? gap : 0;
+  return Math.max(0, Math.round(expect - window.innerHeight));
 }
 const vpW = () => window.innerWidth;
-const vpH = () => window.innerHeight + VGAP;
+const vpH = () => window.innerHeight;
 /* The stage is sized from the measured viewport rather than inset:0 so it always
    covers the whole screen, whatever iOS does with fixed positioning. */
 function sizeStage() {
-  const r = document.documentElement.style, gap = VGAP = measureViewportGap();
-  r.setProperty('--vgap', gap + 'px');
-  r.setProperty('--vpw', window.innerWidth + 'px');
-  r.setProperty('--vph', (window.innerHeight + gap) + 'px');
+  const r = document.documentElement.style;
+  r.setProperty('--vpw', vpW() + 'px');
+  r.setProperty('--vph', vpH() + 'px');
 }
 function deviceAngle() {
   try { if (screen.orientation && typeof screen.orientation.angle === 'number') return ((screen.orientation.angle % 360) + 360) % 360; } catch (e) { }

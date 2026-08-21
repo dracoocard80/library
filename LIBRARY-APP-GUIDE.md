@@ -51,18 +51,21 @@ from blob URLs, `alert`/`confirm`/`prompt`, vibration, device orientation — wo
 | CSS viewport (portrait) | **430 × 932 pt** |
 | CSS viewport (landscape) | 932 × 430 pt |
 | Device pixels | 1290 × 2796 (**DPR 3**) |
-| Top safe-area inset (portrait) | **59 pt** — status bar + Dynamic Island |
+| Top safe-area inset (portrait) | **0 pt** inside Library (iOS draws the status bar; the page starts below it) — **59 pt** if the file is installed standalone with a translucent status bar |
 | Bottom safe-area inset (portrait) | **34 pt** — home indicator |
 | Landscape insets | left/right **59 pt**, bottom **21 pt**, top 0 |
 | Dynamic Island itself | pill ≈ **125 × 37 pt**, horizontally centred, ≈ 11 pt below the top edge |
-| Status bar text | always **white** (Library sets `black-translucent`), so keep the top strip dark |
+| Status bar | drawn by iOS above your page (Library sets `black`), white text on black |
 
 Design for **430 × 932** and let it scale; other iPhones are narrower (375–430 pt) and shorter.
 Use `min()/max()/clamp()`, flexbox and `%`/`vh` rather than fixed pixel layouts, and test that
 nothing breaks at 375 × 667.
 
-**Where the notch is:** the Dynamic Island floats over the top ~59 pt. Never put text, buttons or
-score readouts in the top 59 pt unless you offset them with `env(safe-area-inset-top)`. The
+**Where the notch is:** the Dynamic Island occupies the top ~59 pt of the physical screen. Inside
+Library that band is a system-drawn status bar and your page simply starts underneath it, so
+`env(safe-area-inset-top)` is 0 and you need no top offset — but keep using
+`env(safe-area-inset-top)` anyway (it costs nothing and is correct if the file is ever installed
+on its own). The
 bottom 34 pt is the home-indicator strip: it's fine to *draw* there (background, artwork, a game
 board), just don't put a control the user must tap repeatedly right at the very bottom edge —
 the system swipe-up gesture lives there.
@@ -79,7 +82,7 @@ the system swipe-up gesture lives there.
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="My App">
 <meta name="theme-color" content="#0b0d12">
 <meta name="color-scheme" content="dark">
@@ -170,26 +173,18 @@ If you have a bottom bar whose buttons must stay clear of the home-indicator swi
 `padding-bottom: 10px` (a plain constant) rather than the inset, or set
 `<meta name="library-fill-bottom" content="off">`.
 
-### The iOS "gap at the bottom" bug (only when run standalone)
+### Don't use `black-translucent` (the bottom-strip bug)
 
-If you add a file to the Home Screen **as its own web app** with
-`apple-mobile-web-app-status-bar-style: black-translucent`, iOS shifts the document up under the
-status bar but keeps the layout viewport at *screen height − status-bar height*. On a 15 Pro Max
-that's `window.innerHeight === 873` on a 932pt screen, and a dead strip 59pt tall is left at the
-bottom (portrait only — in landscape the top inset is 0, so nothing is wrong). `100%`, `100vh`,
-`100dvh` and `position:fixed;bottom:0` all follow the short viewport, so the strip stays empty.
+Drawing under the status bar looks like the more "full screen" choice, but on iOS
+`apple-mobile-web-app-status-bar-style: black-translucent` keeps the layout viewport at
+*screen height − status-bar height* while anchoring it at the top. On a 15 Pro Max that is a
+873pt viewport on a 932pt screen, and the bottom 59pt is **clipped** — content drawn there is
+never composited, so no CSS trick reaches it. Portrait only; in landscape the top inset is 0 and
+nothing is wrong.
 
-Cover it by extending the root by the top inset:
-
-```css
-html { min-height: calc(100% + env(safe-area-inset-top)); }
-/* and for a full-screen fixed layout: */
-#app { height: calc(100% + env(safe-area-inset-top)); }
-```
-
-Anything anchored to the bottom needs the same shift: `bottom: calc(0px - env(safe-area-inset-top))`.
-Inside Library this is measured and handled for you, so an app that does nothing about it still
-fills the screen; the fix above only matters for files you install directly.
+Use `content="black"` (as in the head block above). iOS draws the status bar itself and your page
+gets everything below it, down to the real bottom edge. This only matters for files you install to
+the Home Screen directly — inside Library the shell decides, and it asks for `black`.
 
 ---
 
@@ -366,7 +361,7 @@ document.addEventListener('visibilitychange', () => {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Starter">
 <meta name="theme-color" content="#0b0d12">
 <meta name="color-scheme" content="dark">

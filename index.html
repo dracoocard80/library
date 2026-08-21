@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Library">
 <meta name="application-name" content="Library">
 <meta name="color-scheme" content="dark">
@@ -22,11 +22,6 @@
   --radius:14px; --tile:22%;
   --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom);
   --sal:env(safe-area-inset-left); --sar:env(safe-area-inset-right);
-  /* iOS standalone + black-translucent moves the document up under the status bar but keeps the
-     layout viewport at (screen - status bar), leaving a dead strip that tall at the bottom of the
-     screen. --vgap is that difference, measured at runtime; fixed elements subtract it to reach
-     the real bottom edge, and --vph is the true web-view height. */
-  --vgap:0px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text)}
@@ -49,7 +44,7 @@ img{max-width:100%}
 .sr{position:absolute;left:-9999px}
 
 /* ---------- Home ---------- */
-#home{padding:calc(var(--sat) + 8px) calc(var(--sar) + 16px) calc(var(--sab) + var(--vgap) + 96px) calc(var(--sal) + 16px);}
+#home{padding:calc(var(--sat) + 8px) calc(var(--sar) + 16px) calc(var(--sab) + 96px) calc(var(--sal) + 16px);}
 .topbar{display:flex;align-items:center;gap:10px;padding:8px 0 10px}
 .topbar h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:0;flex:1;display:flex;align-items:center;gap:8px;min-width:0}
 .topbar h1 .crumb{color:var(--muted);font-weight:600;font-size:16px}
@@ -126,9 +121,9 @@ body.edit .tile .ic{animation:wiggle .35s ease-in-out infinite alternate}
 #stage .fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);text-align:center;padding:24px}
 
 /* ---------- Sheets & modals ---------- */
-.scrim{position:fixed;top:0;left:0;right:0;bottom:calc(0px - var(--vgap));background:rgba(0,0,0,.55);z-index:100;opacity:0;transition:opacity .2s;pointer-events:none;touch-action:none}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;opacity:0;transition:opacity .2s;pointer-events:none;touch-action:none}
 .scrim.on{opacity:1;pointer-events:auto}
-.sheet{position:fixed;left:0;right:0;bottom:calc(var(--kb,0px) - var(--vgap));z-index:101;background:var(--bg2);border-radius:20px 20px 0 0;max-height:calc(100% + var(--vgap) - var(--sat) - 20px - var(--kb,0px));display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s cubic-bezier(.2,.8,.2,1);padding-bottom:calc(var(--sab) + var(--vgap));padding-left:var(--sal);padding-right:var(--sar)}
+.sheet{position:fixed;left:0;right:0;bottom:var(--kb,0px);z-index:101;background:var(--bg2);border-radius:20px 20px 0 0;max-height:calc(100% - var(--sat) - 20px - var(--kb,0px));display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s cubic-bezier(.2,.8,.2,1);padding-bottom:var(--sab);padding-left:var(--sal);padding-right:var(--sar)}
 .sheet.on{transform:translateY(0)}
 .sheet .grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:8px auto 4px;flex:none}
 .sheet .hd{display:flex;align-items:center;gap:10px;padding:8px 16px 10px;flex:none}
@@ -188,7 +183,7 @@ textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid
 .emojirow input{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;font-size:22px;text-align:center;color:var(--text);outline:none}
 
 /* ---------- Dialog (confirm/prompt) ---------- */
-.dialog{position:fixed;left:50%;top:calc(50% + var(--vgap) / 2 - var(--kb,0px) / 2);transform:translate(-50%,-50%) scale(.96);width:min(320px,calc(100% - var(--sal) - var(--sar) - 48px));background:var(--bg2);border-radius:18px;z-index:201;padding:18px 16px 12px;text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.dialog{position:fixed;left:50%;top:calc(50% - var(--kb,0px) / 2);transform:translate(-50%,-50%) scale(.96);width:min(320px,calc(100% - var(--sal) - var(--sar) - 48px));background:var(--bg2);border-radius:18px;z-index:201;padding:18px 16px 12px;text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;box-shadow:0 20px 60px rgba(0,0,0,.6)}
 .dialog.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
 .dialog h3{margin:0 0 6px;font-size:17px}
 .dialog p{margin:0 0 14px;color:var(--muted);font-size:14px;white-space:pre-line}
@@ -216,12 +211,12 @@ textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid
 #vptest .ok{color:#7dffb0}
 #vptest .bad{color:#ffb84a}
 #vptest button{border:0;border-radius:10px;padding:10px 16px;font-weight:700;background:#ff2fd0;color:#1b0f2b}
-#toast{position:fixed;left:50%;bottom:calc(var(--sab) + 24px - var(--vgap));transform:translate(-50%,20px);background:#262c3a;color:#fff;border-radius:999px;padding:10px 16px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:calc(100% - 40px);text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#toast{position:fixed;left:50%;bottom:calc(var(--sab) + 24px);transform:translate(-50%,20px);background:#262c3a;color:#fff;border-radius:999px;padding:10px 16px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:calc(100% - 40px);text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 #toast.action{pointer-events:auto}
 #toast button{background:none;border:0;color:var(--accent);font-weight:800;margin-left:8px}
 
-.fab{position:fixed;right:calc(var(--sar) + 18px);bottom:calc(var(--sab) + 18px - var(--vgap));z-index:40;width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:#0a0f1e;font-size:30px;font-weight:800;box-shadow:0 8px 24px rgba(122,162,255,.35);display:flex;align-items:center;justify-content:center;line-height:1;padding:0 0 3px}
+.fab{position:fixed;right:calc(var(--sar) + 18px);bottom:calc(var(--sab) + 18px);z-index:40;width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:#0a0f1e;font-size:30px;font-weight:800;box-shadow:0 8px 24px rgba(122,162,255,.35);display:flex;align-items:center;justify-content:center;line-height:1;padding:0 0 3px}
 .fab:active{background:var(--accent2)}
 </style>
 </head>
