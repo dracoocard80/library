@@ -1,6 +1,6 @@
 /* Library service worker — caches the app shell so it opens offline.
    Bump CACHE_VERSION whenever you change any file in ASSETS. */
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE = 'html-library-' + CACHE_VERSION;
 const ASSETS = [
   './',

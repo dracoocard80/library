@@ -17,7 +17,9 @@ full-screen, each with its own private storage.
 > Handle the **top** safe area with `env(safe-area-inset-top)` **exactly once**; do not add
 > bottom safe-area padding — content should reach the bottom edge. Use **Pointer Events**
 > (`pointerdown`/`pointermove`/`pointerup` + `setPointerCapture`), `touch-action:none` on any
-> interactive surface, ≥44 pt hit targets, and never rely on hover. Persist state to
+> interactive surface, ≥44 pt hit targets, and never rely on hover. The screen corners are rounded
+> (~55 pt radius) — keep controls ≥24 pt from both edges at a corner. The top ~59 pt is a
+> system-drawn black status bar you cannot paint into, so keep the top of the app dark. Persist state to
 > `localStorage` (JSON, one key) and save on `visibilitychange`→hidden and `pagehide`.
 > Add `<button data-library-home hidden>⌂ Library</button>` for the back-to-Library button, and
 > these head tags: `library-name`, `library-icon`, `library-folder`, `library-orientation`.
@@ -55,6 +57,7 @@ from blob URLs, `alert`/`confirm`/`prompt`, vibration, device orientation — wo
 | Bottom safe-area inset (portrait) | **34 pt** — home indicator |
 | Landscape insets | left/right **59 pt**, bottom **21 pt**, top 0 |
 | Dynamic Island itself | pill ≈ **125 × 37 pt**, horizontally centred, ≈ 11 pt below the top edge |
+| Screen corner radius | ≈ **55 pt** — the display is a rounded rectangle; pixels inside the arc are not shown |
 | Status bar | drawn by iOS above your page (Library sets `black`), white text on black |
 
 Design for **430 × 932** and let it scale; other iPhones are narrower (375–430 pt) and shorter.
@@ -65,10 +68,74 @@ nothing breaks at 375 × 667.
 Library that band is a system-drawn status bar and your page simply starts underneath it, so
 `env(safe-area-inset-top)` is 0 and you need no top offset — but keep using
 `env(safe-area-inset-top)` anyway (it costs nothing and is correct if the file is ever installed
-on its own). The
-bottom 34 pt is the home-indicator strip: it's fine to *draw* there (background, artwork, a game
-board), just don't put a control the user must tap repeatedly right at the very bottom edge —
-the system swipe-up gesture lives there.
+on its own). The bottom 34 pt is the home-indicator strip: it's fine to *draw* there (background,
+artwork, a game board), just don't put a control the user must tap repeatedly right at the very
+bottom edge — the system swipe-up gesture lives there.
+
+### The screen is a rounded rectangle — stay out of the corners
+
+The display's corners are rounded by roughly **55 pt** and anything outside that arc is simply not
+shown. Safe-area insets do **not** account for it: in portrait the left/right insets are 0, so a
+button tucked into a corner gets a bite taken out of it.
+
+The arc is a quarter-circle of radius ~55 pt centred 55 pt in from each edge. A control whose
+corner sits 16 pt from both edges is *exactly* on the arc (it gets clipped); **24 pt from both
+edges** clears it by ~11 pt. So:
+
+- **Corner-anchored controls** (a close ✕, a back arrow, a floating action button): at least
+  **24 pt** from *both* adjacent edges. More is better — 16 pt only works if the control itself has
+  a generous corner radius.
+- **Full-width bars** (headers, docks, toolbars): the bar can run edge to edge, but keep its text
+  and icons **≥ 16 pt** from the left/right edges, and give the bar enough height that its content
+  is ≥ 12 pt clear of the screen's top/bottom edge.
+- **Backgrounds, gradients, artwork, canvases**: run them edge to edge and let the corners clip
+  them. That's what makes the app look native.
+- **Landscape** takes care of itself: the 59 pt left/right insets already push content past the arcs.
+
+```css
+/* a corner-safe floating button */
+.corner-btn { position: fixed; right: 24px; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); }
+/* a full-width bar: edge-to-edge background, inset content */
+.bar { padding-left: max(16px, env(safe-area-inset-left, 0px));
+       padding-right: max(16px, env(safe-area-inset-right, 0px)); min-height: 52px; }
+```
+
+### The status-bar strip at the top
+
+iOS gives web apps exactly three choices — `default`, `black`, `black-translucent` — and **a custom
+colour is not one of them**; `theme_color` in the manifest is ignored on iOS. Library uses `black`,
+so the top ~59 pt is a solid black bar drawn by the system, your page starts below it, and you
+cannot paint into it.
+
+The way to make that look deliberate is to let your app *continue* into it — put a dark band at the
+top of your own layout so the seam disappears:
+
+```css
+/* top of the app reads as one piece with the black status bar */
+header {
+  background: #000;                       /* or a very dark tint of your theme */
+  color: #e8ecf5;
+  padding: 10px 16px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.06);
+}
+body { background: #0b0d12; }             /* keep the first screenful dark */
+```
+
+A dark app therefore looks seamless. A light-themed app will show a black bar above it — either
+accept it as a title bar, or give the app a dark header of its own so the transition is intentional
+rather than accidental.
+
+**The padding fallback.** Always write the top offset as `env(safe-area-inset-top)` rather than a
+hard-coded 59 pt. Inside Library it evaluates to 0 (the system bar already provides the clearance,
+so you get no wasted space), and if the same file is ever installed to the Home Screen on its own it
+does the right thing there too:
+
+```css
+#app { padding-top: env(safe-area-inset-top, 0px); }
+```
+
+Never put text, a score, or a control in the top 59 pt of a *standalone* install without that
+offset — the clock, battery and camera sit there.
 
 ---
 
@@ -423,6 +490,8 @@ draw();
 - [ ] No horizontal scrollbar; nothing clipped at 430 × 932 **or** 375 × 667.
 - [ ] Pinch, double-tap and focus-zoom all do nothing.
 - [ ] Nothing important in the top 59 pt unless offset by `env(safe-area-inset-top)`.
+- [ ] No control within 24 pt of a screen corner (the corners are rounded ~55 pt and clip).
+- [ ] The top of the app is dark, so it reads as one piece with the black status bar.
 - [ ] Content reaches the bottom edge; the bottom inset is applied at most once (ideally not at all).
 - [ ] Every control is ≥ 44 pt, responds on `pointerdown`, and handles `pointercancel`.
 - [ ] State survives closing and reopening; it saves on `visibilitychange` → hidden.

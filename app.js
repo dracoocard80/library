@@ -5,7 +5,7 @@
    data (or the Library's). */
 'use strict';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -1305,7 +1305,7 @@ function updateHomeBtn() {
 function armDim() { homeBtn.classList.remove('dim'); clearTimeout(dimTimer); dimTimer = setTimeout(() => homeBtn.classList.add('dim'), 2500); }
 function positionHomeBtn() {
   const pos = (RT.app && RT.app.settings.homeBtnPos) || settings.homeBtnPos || { side: 'right', y: 0.6 };
-  const W = vpW(), H = vpH(), S = 40, m = 6;
+  const W = vpW(), H = vpH(), S = 40, m = 10; // 10pt keeps the button clear of the rounded display corners
   const sat = safeInset('top'), sab = safeInset('bottom');
   const y = Math.min(H - sab - S - m, Math.max(sat + m, pos.y * H));
   homeBtn.style.top = y + 'px';
