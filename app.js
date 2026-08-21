@@ -5,7 +5,7 @@
    data (or the Library's). */
 'use strict';
 
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.4.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -365,7 +365,7 @@ function folderTile(f) {
   const ic = el('div', { class: 'ic folder' });
   const inside = sortedApps(apps.filter((a) => a.folderId === f.id)).slice(0, 4);
   for (const a of inside) { const m = iconNode(a); m.className = 'mini'; ic.append(m); }
-  for (let i = inside.length; i < 4; i++) ic.append(el('div', { class: 'mini', style: 'background:rgba(255,255,255,.06)' }));
+  for (let i = inside.length; i < 4; i++) ic.append(el('div', { class: 'mini', style: 'background:var(--glass)' }));
   t.append(ic, el('span', { class: 'lbl' }, f.name), el('span', { class: 'more' }, '⋯'));
   attachPress(t, () => { if (editMode) openFolderSheet(f); else { view.folder = f.id; render(); window.scrollTo(0, 0); } }, () => openFolderSheet(f));
   return t;
@@ -613,8 +613,8 @@ async function openStorageSheet() {
     // breakdown
     const seg = (n, color) => el('span', { style: `width:${total ? (n / total * 100) : 0}%;background:${color}` });
     b.append(section(row(el('div', { class: 'k' }, `Library total: ${fmtBytes(total)}`,
-      el('div', { class: 'bar' }, seg(shell, '#8e97ab'), seg(html, '#7aa2ff'), seg(data, '#4fd28a'), seg(icons, '#ffb84a')),
-      el('div', { class: 'legend' }, el('span', null, el('i', { style: 'background:#8e97ab' }), `Library app ${fmtBytes(shell)}`), el('span', null, el('i', { style: 'background:#7aa2ff' }), `HTML files ${fmtBytes(html)}`), el('span', null, el('i', { style: 'background:#4fd28a' }), `Saved data ${fmtBytes(data)}`), el('span', null, el('i', { style: 'background:#ffb84a' }), `Icons ${fmtBytes(icons)}`)),
+      el('div', { class: 'bar' }, seg(shell, 'var(--muted)'), seg(html, 'var(--accent)'), seg(data, 'var(--ok)'), seg(icons, 'var(--warn)')),
+      el('div', { class: 'legend' }, el('span', null, el('i', { style: 'background:var(--muted)' }), `Library app ${fmtBytes(shell)}`), el('span', null, el('i', { style: 'background:var(--accent)' }), `HTML files ${fmtBytes(html)}`), el('span', null, el('i', { style: 'background:var(--ok)' }), `Saved data ${fmtBytes(data)}`), el('span', null, el('i', { style: 'background:var(--warn)' }), `Icons ${fmtBytes(icons)}`)),
       el('small', null, 'Sizes are the raw bytes stored; the browser adds a little overhead. Databases created by apps aren\'t counted individually.')))));
     // per app
     const list = el('div', { class: 'section stlist' });
@@ -633,6 +633,146 @@ async function openStorageSheet() {
 }
 
 /* ---------- Settings sheet ---------- */
+/* ============================================================
+   Themes
+   ============================================================
+   A theme is just the :root token set from index.html. Applying one writes the
+   tokens onto documentElement and mirrors them to localStorage, where the inline
+   script in <head> picks them up on the next launch before the first paint. */
+const THEMES = [
+  {
+    id: 'midnight', name: 'Midnight', scheme: 'dark', vars: {
+      '--bg': '#0c0e13', '--bg2': '#12151c', '--surface': '#171b24', '--surface2': '#1f2431', '--line': '#2a3040',
+      '--text': '#e9edf5', '--muted': '#8e97ab', '--faint': '#5b6478', '--accent': '#7aa2ff', '--accent2': '#5d86ef',
+      '--on-accent': '#0a0f1e', '--danger': '#ff5f57', '--ok': '#4fd28a', '--warn': '#ffb84a',
+      '--glass': 'rgba(255,255,255,.10)', '--toast-bg': '#262c3a', '--toast-text': '#ffffff', '--code': '#c9d3e6',
+    }
+  },
+  {
+    id: 'nasapunk', name: 'Nasapunk', scheme: 'dark', vars: {
+      '--bg': '#08090a', '--bg2': '#101110', '--surface': '#191a17', '--surface2': '#232420', '--line': '#3a3b36',
+      '--text': '#c9c2ae', '--muted': '#8d8878', '--faint': '#64604f', '--accent': '#ffb03a', '--accent2': '#c47a15',
+      '--on-accent': '#1a1206', '--danger': '#fc4a24', '--ok': '#63f2a0', '--warn': '#ffcf78',
+      '--glass': 'rgba(201,194,174,.10)', '--toast-bg': '#232420', '--toast-text': '#ece7d9', '--code': '#c9c2ae',
+    }
+  },
+  {
+    id: 'terminal', name: 'Terminal', scheme: 'dark', vars: {
+      '--bg': '#050806', '--bg2': '#0a0f0b', '--surface': '#0f1611', '--surface2': '#16211a', '--line': '#1e2d23',
+      '--text': '#cdf5d8', '--muted': '#6f9a7d', '--faint': '#4a6b56', '--accent': '#35ff7a', '--accent2': '#1fc75b',
+      '--on-accent': '#04120a', '--danger': '#ff5b5b', '--ok': '#35ff7a', '--warn': '#e8d44d',
+      '--glass': 'rgba(205,245,216,.08)', '--toast-bg': '#16211a', '--toast-text': '#cdf5d8', '--code': '#9fe6b5',
+    }
+  },
+  {
+    id: 'ember', name: 'Ember', scheme: 'dark', vars: {
+      '--bg': '#100d0b', '--bg2': '#171310', '--surface': '#1e1815', '--surface2': '#29211c', '--line': '#382d26',
+      '--text': '#f2e7df', '--muted': '#a89184', '--faint': '#6f5d53', '--accent': '#ff7a45', '--accent2': '#e05a26',
+      '--on-accent': '#1a0c05', '--danger': '#ff4d4d', '--ok': '#7bd88f', '--warn': '#ffc861',
+      '--glass': 'rgba(242,231,223,.09)', '--toast-bg': '#29211c', '--toast-text': '#f2e7df', '--code': '#e8cdbb',
+    }
+  },
+  {
+    id: 'orchid', name: 'Orchid', scheme: 'dark', vars: {
+      '--bg': '#100a18', '--bg2': '#171021', '--surface': '#1e1529', '--surface2': '#291d38', '--line': '#3a2b4d',
+      '--text': '#efe6f7', '--muted': '#a794bb', '--faint': '#715f85', '--accent': '#d478ff', '--accent2': '#a94fe0',
+      '--on-accent': '#16081f', '--danger': '#ff5d8f', '--ok': '#62e6c3', '--warn': '#ffd166',
+      '--glass': 'rgba(239,230,247,.09)', '--toast-bg': '#291d38', '--toast-text': '#efe6f7', '--code': '#d9c7e8',
+    }
+  },
+  {
+    id: 'ocean', name: 'Ocean', scheme: 'dark', vars: {
+      '--bg': '#06121a', '--bg2': '#0a1a24', '--surface': '#0f2230', '--surface2': '#163040', '--line': '#1f4356',
+      '--text': '#dff1f7', '--muted': '#8ab0bf', '--faint': '#5b7d8c', '--accent': '#3ad6c8', '--accent2': '#1fb0a4',
+      '--on-accent': '#04211e', '--danger': '#ff6b6b', '--ok': '#57e0a0', '--warn': '#ffcc66',
+      '--glass': 'rgba(223,241,247,.09)', '--toast-bg': '#163040', '--toast-text': '#dff1f7', '--code': '#b8dbe6',
+    }
+  },
+  {
+    id: 'graphite', name: 'Graphite', scheme: 'dark', vars: {
+      '--bg': '#101012', '--bg2': '#16161a', '--surface': '#1c1c21', '--surface2': '#26262d', '--line': '#33333c',
+      '--text': '#ececed', '--muted': '#9a9aa4', '--faint': '#66666f', '--accent': '#e8e8ee', '--accent2': '#c9c9d2',
+      '--on-accent': '#16161a', '--danger': '#f2665f', '--ok': '#6fd08c', '--warn': '#e2b45a',
+      '--glass': 'rgba(255,255,255,.09)', '--toast-bg': '#26262d', '--toast-text': '#ececed', '--code': '#cfcfd6',
+    }
+  },
+  {
+    id: 'paper', name: 'Paper', scheme: 'light', vars: {
+      '--bg': '#f6f5f1', '--bg2': '#ffffff', '--surface': '#eeece6', '--surface2': '#e4e1d9', '--line': '#d6d2c8',
+      '--text': '#1c1b18', '--muted': '#6d6a62', '--faint': '#97938a', '--accent': '#2f6df0', '--accent2': '#1d54cc',
+      '--on-accent': '#ffffff', '--danger': '#d8352a', '--ok': '#1f9d55', '--warn': '#b7791f',
+      '--glass': 'rgba(28,27,24,.08)', '--toast-bg': '#22211e', '--toast-text': '#f6f5f1', '--code': '#3a382f',
+    }
+  },
+];
+const themeById = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
+
+function hexRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+}
+const toHex = (rgb) => '#' + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const shade = (hex, f) => { const c = hexRgb(hex); return c ? toHex(c.map((v) => v * f)) : hex; };
+const rgba = (hex, a) => { const c = hexRgb(hex); return c ? `rgba(${c[0]},${c[1]},${c[2]},${a})` : hex; };
+
+/* Resolve theme + optional custom accent into the final token set. */
+function themeVars(id, accent) {
+  const t = themeById(id);
+  const vars = { ...t.vars };
+  if (accent && hexRgb(accent)) {
+    vars['--accent'] = accent;
+    vars['--accent2'] = shade(accent, 0.82);
+    vars['--on-accent'] = isLightColor(accent) ? '#14161c' : '#ffffff';
+  }
+  vars['--accent-glow'] = rgba(vars['--accent'], 0.35);
+  vars['--danger-wash'] = rgba(vars['--danger'], 0.14);
+  return vars;
+}
+function applyTheme(id, accent) {
+  const t = themeById(id), vars = themeVars(id, accent), r = document.documentElement;
+  for (const [k, v] of Object.entries(vars)) r.style.setProperty(k, v);
+  r.style.setProperty('color-scheme', t.scheme);
+  vars['color-scheme'] = t.scheme;
+  try { localStorage.setItem('lib.themeVars', JSON.stringify(vars)); } catch (e) { }
+}
+async function setTheme(id, accent) {
+  await setSetting('theme', id);
+  await setSetting('accent', accent || null);
+  applyTheme(id, accent);
+}
+
+function openThemeSheet() {
+  openSheet('Appearance', (b) => {
+    const cur = settings.theme || 'midnight', accent = settings.accent || null;
+    b.append(el('div', { class: 'hint' }, 'Changes the Library itself. Your apps draw their own colours and are not affected.'));
+    const grid = el('div', { class: 'themegrid' });
+    for (const t of THEMES) {
+      const v = themeVars(t.id, t.id === cur ? accent : null);
+      const card = el('button', { class: 'themecard' + (t.id === cur ? ' on' : ''), style: `background:${v['--bg']};border-color:${t.id === cur ? v['--accent'] : v['--line']}` });
+      card.append(
+        el('div', { class: 'swatch' },
+          el('i', { style: `background:${v['--surface2']}` }),
+          el('i', { style: `background:${v['--accent']}` }),
+          el('i', { style: `background:${v['--ok']}` })),
+        el('span', { style: `color:${v['--text']}` }, t.name),
+      );
+      card.addEventListener('click', async () => { await setTheme(t.id, t.id === cur ? accent : null); openThemeSheet(); });
+      grid.append(card);
+    }
+    b.append(grid);
+    const picker = el('input', { type: 'color', class: 'colorpick', value: (accent || themeById(cur).vars['--accent']) });
+    picker.addEventListener('input', () => applyTheme(cur, picker.value));
+    picker.addEventListener('change', async () => { await setTheme(cur, picker.value); openThemeSheet(); });
+    b.append(section(
+      row('Accent colour', picker, { sub: 'Tints buttons, links and the ＋ button.' }),
+      accent ? row('Use the theme\'s own accent', null, { btn: true, onclick: async () => { await setTheme(cur, null); openThemeSheet(); } }) : null,
+    ));
+    b.append(section(row('Reset appearance', null, { btn: true, onclick: async () => { await setTheme('midnight', null); openThemeSheet(); } })));
+  });
+}
+
 /* What the page can actually see of the screen. If the web view is laid out inside the
    safe area (iOS not honouring viewport-fit=cover) the insets read 0 and innerHeight is
    short of screen.height — no CSS can reach those strips, they're outside the page. */
@@ -703,6 +843,7 @@ function openSettingsSheet() {
       row('Check for updates', el('span', { class: 'chev' }, '›'), { btn: true, onclick: async () => { if (!SW.reg) { toast('Service worker not registered'); return; } toast('Checking…'); try { SW.updateShown = false; await SW.reg.update(); setTimeout(() => { if (SW.reg.waiting) SW.offer(SW.reg.waiting); else if (!SW.updateShown) toast('You have the latest version'); }, 1500); } catch (e) { toast('Update check failed (offline?)'); } } }),
     ));
     b.append(section(
+      row('Appearance', el('span', { class: 'chev' }, '›'), { btn: true, sub: `Theme and accent colour for the Library — currently ${themeById(settings.theme).name}.`, onclick: openThemeSheet }),
       row('Storage & backups', el('span', { class: 'chev' }, '›'), { btn: true, onclick: openStorageSheet }),
       row('Status bar', segControl([{ label: 'Bar', value: 'black' }, { label: 'Fill', value: 'translucent' }], globalStatusBar(), async (v) => {
         await setSetting('statusBar', v);
@@ -791,7 +932,7 @@ async function backupAll() {
   toast('Building backup…');
   const files = await DB.all('files'), states = await DB.all('state');
   const fm = new Map(files.map((f) => [f.id, f.html])), sm = new Map(states.map((s) => [s.id, s.ls || {}]));
-  const out = { format: 'html-library-backup', version: 1, exportedAt: new Date().toISOString(), settings: { sort: settings.sort, homeBtnPos: settings.homeBtnPos }, folders, apps: apps.map((a) => ({ ...a, html: fm.get(a.id) || '', localStorage: sm.get(a.id) || {} })) };
+  const out = { format: 'html-library-backup', version: 1, exportedAt: new Date().toISOString(), settings: { sort: settings.sort, homeBtnPos: settings.homeBtnPos, theme: settings.theme, accent: settings.accent }, folders, apps: apps.map((a) => ({ ...a, html: fm.get(a.id) || '', localStorage: sm.get(a.id) || {} })) };
   const blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
   await saveFile(blob, `library-backup-${new Date().toISOString().slice(0, 10)}.json`);
 }
@@ -817,7 +958,8 @@ async function restoreBackup(text) {
       stateBytes.set(meta.id, byteLen(JSON.stringify(ls || {}))); n++;
     } catch (e) { console.error('restore failed for', a && a.name, e); failed++; }
   }
-  if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (k === 'sort' || k === 'homeBtnPos') await setSetting(k, v);
+  if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (['sort', 'homeBtnPos', 'theme', 'accent'].includes(k)) await setSetting(k, v);
+  if (data.settings) applyTheme(settings.theme, settings.accent);
   render(); toast(`Restored ${n} app${n === 1 ? '' : 's'}${failed ? ` · ${failed} failed (storage full?)` : ''}`);
 }
 async function importAppData(app, text) {
@@ -1485,6 +1627,7 @@ async function init() {
     console.error(e);
     $('#home').prepend(el('div', { class: 'banner' }, el('div', null, '⚠️'), el('div', null, el('b', null, 'Storage unavailable'), el('br'), 'This browser blocked IndexedDB (private browsing?). The Library needs it to keep your apps.')));
   }
+  applyTheme(settings.theme, settings.accent);
   if (IS_IOS && !IS_STANDALONE && !settings.installBannerDismissed) $('#installBanner').classList.remove('hidden');
   if (settings.running && appById(settings.running)) reopenApp = appById(settings.running);
   render();
@@ -1498,4 +1641,4 @@ async function init() {
 init();
 
 // Expose a little for debugging / tests
-window.Library = { importHtmlText, importFiles, launchApp, suspendApp, resumeApp, quitApp, apps: () => apps, folders: () => folders, DB, RT, render, parseAppMeta, buildRunnableHtml, backupAll, applyStageMode, applyOrientation, killInsets, sizeStage, saveApp };
+window.Library = { importHtmlText, importFiles, launchApp, suspendApp, resumeApp, quitApp, apps: () => apps, folders: () => folders, DB, RT, render, parseAppMeta, buildRunnableHtml, backupAll, applyStageMode, applyOrientation, killInsets, sizeStage, saveApp, setTheme, applyTheme, THEMES };

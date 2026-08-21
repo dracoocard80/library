@@ -10,6 +10,7 @@ A tiny PWA (hosted on GitHub Pages) that works like a Steam-style library for si
 - **Suspend/resume.** Tap ⌂ to go back to the home screen while the app keeps running; resume or quit from the banner.
 - **True full-screen.** Apps fill the whole display; only the top inset is (optionally) padded. Apps that leave their own gap above the home indicator get it removed automatically — see *Full-screen and safe areas* below.
 - **Per-app orientation lock** (Auto / Portrait / Landscape) that works on iOS, where the OS can't lock a web app.
+- **Themes.** Settings → *Appearance*: eight palettes (Midnight, Nasapunk, Terminal, Ember, Orchid, Ocean, Graphite and a light Paper) plus any custom accent colour. Only the Library is themed — apps draw their own colours.
 - **A design guide for LLMs** — Settings → *Design guide for LLMs* → **Copy all**, then paste it into a prompt. Also in the repo as [`LIBRARY-APP-GUIDE.md`](LIBRARY-APP-GUIDE.md).
 - **A one-line snippet** you can paste into any HTML app to give it a native "back to Library" button — see [`library-snippet.html`](library-snippet.html) or Settings → *For your HTML apps* inside the app.
 

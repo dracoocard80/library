@@ -14,11 +14,22 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<script>/* saved theme, applied before first paint to avoid a flash of the default palette */
+try{var _t=JSON.parse(localStorage.getItem('lib.themeVars')||'null');if(_t){var _r=document.documentElement;for(var _k in _t)_r.style.setProperty(_k,_t[_k]);}}catch(e){}</script>
 <style>
 :root{
+  /* Theme tokens — every colour the shell uses. app.js overwrites these on :root when a
+     theme is picked, and an inline script in <head> re-applies the saved set before first
+     paint so there is no flash of the default palette. */
   --bg:#0c0e13; --bg2:#12151c; --surface:#171b24; --surface2:#1f2431; --line:#2a3040;
   --text:#e9edf5; --muted:#8e97ab; --faint:#5b6478; --accent:#7aa2ff; --accent2:#5d86ef;
   --danger:#ff5f57; --ok:#4fd28a; --warn:#ffb84a;
+  --on-accent:#0a0f1e;                      /* text/icons drawn on top of --accent */
+  --accent-glow:rgba(122,162,255,.35);      /* the FAB's halo */
+  --danger-wash:rgba(255,95,87,.14);        /* destructive button fill */
+  --glass:rgba(255,255,255,.10);            /* folder tiles */
+  --toast-bg:#262c3a; --toast-text:#fff;
+  --code:#c9d3e6;
   --radius:14px; --tile:22%;
   --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom);
   --sal:env(safe-area-inset-left); --sar:env(safe-area-inset-right);
@@ -51,10 +62,10 @@ img{max-width:100%}
 .topbar h1 .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .iconbtn{width:38px;height:38px;border-radius:50%;border:0;background:var(--surface);color:var(--text);display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:none}
 .iconbtn:active{background:var(--surface2)}
-.iconbtn.primary{background:var(--accent);color:#0a0f1e;font-weight:800;font-size:24px}
+.iconbtn.primary{background:var(--accent);color:var(--on-accent);font-weight:800;font-size:24px}
 .pill{border:0;background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:600;white-space:nowrap}
 .pill:active{background:var(--surface2)}
-.pill.on{background:var(--accent);color:#0a0f1e}
+.pill.on{background:var(--accent);color:var(--on-accent)}
 .searchrow{display:flex;gap:8px;margin-bottom:12px}
 .searchrow input{flex:1;background:var(--surface);border:1px solid transparent;border-radius:12px;padding:10px 12px;color:var(--text);outline:none;min-width:0}
 .searchrow input:focus{border-color:var(--line)}
@@ -62,7 +73,7 @@ img{max-width:100%}
 .sortrow{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none}
 .sortrow::-webkit-scrollbar{display:none}
 
-.running{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#1c2437,#161b28);border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:14px}
+.running{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:14px}
 .running .ic{width:38px;height:38px;border-radius:10px;overflow:hidden;flex:none;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:20px}
 .running .ic .letter{font-size:18px;font-weight:800}
 .running .ic img{width:100%;height:100%;object-fit:cover;display:block}
@@ -70,7 +81,7 @@ img{max-width:100%}
 .running .txt b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .running .txt span{font-size:12px;color:var(--ok)}
 .running button{border:0;border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px}
-.running .resume{background:var(--accent);color:#0a0f1e}
+.running .resume{background:var(--accent);color:var(--on-accent)}
 .running .quit{background:var(--surface2);color:var(--text)}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:18px 10px;align-items:start}
@@ -79,11 +90,11 @@ img{max-width:100%}
 .tile .ic{width:64px;height:64px;border-radius:var(--tile);overflow:hidden;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:32px;transition:transform .12s;position:relative;box-shadow:0 2px 10px rgba(0,0,0,.35)}
 .tile .ic img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
 .tile .ic .letter{font-weight:800;font-size:28px;letter-spacing:-.02em}
-.tile .ic.folder{background:rgba(255,255,255,.10);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:9px}
+.tile .ic.folder{background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:9px}
 .tile .ic.folder .mini{border-radius:6px;overflow:hidden;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:12px}
 .tile .ic.folder .mini img{width:100%;height:100%;object-fit:cover}
 .tile .ic.folder .mini .letter{font-size:11px;font-weight:800}
-.tile .lbl{font-size:11.5px;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#dfe5f0}
+.tile .lbl{font-size:11.5px;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
 .tile .dot{position:absolute;top:-3px;right:calc(50% - 32px - 3px);width:10px;height:10px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px var(--bg)}
 .tile .more{position:absolute;top:-6px;left:calc(50% - 32px - 8px);width:22px;height:22px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);color:var(--text);font-size:14px;line-height:20px;text-align:center;display:none}
 body.edit .tile .more{display:block}
@@ -158,16 +169,16 @@ body.edit .tile .ic{animation:wiggle .35s ease-in-out infinite alternate}
 .apphead .meta input{width:100%;background:var(--surface);border:1px solid transparent;border-radius:10px;padding:8px 10px;font-size:17px;font-weight:700;color:var(--text);outline:none}
 .apphead .meta input:focus{border-color:var(--line)}
 .apphead .meta small{display:block;color:var(--muted);font-size:12px;margin-top:6px}
-.bigbtn{display:block;width:100%;border:0;border-radius:14px;padding:14px;font-weight:800;font-size:16px;background:var(--accent);color:#0a0f1e;margin-bottom:12px}
+.bigbtn{display:block;width:100%;border:0;border-radius:14px;padding:14px;font-weight:800;font-size:16px;background:var(--accent);color:var(--on-accent);margin-bottom:12px}
 .bigbtn:active{background:var(--accent2)}
 .bigbtn.secondary{background:var(--surface);color:var(--text)}
-.bigbtn.danger{background:rgba(255,95,87,.14);color:var(--danger)}
+.bigbtn.danger{background:var(--danger-wash);color:var(--danger)}
 .bigbtn:disabled{opacity:.5}
 textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px;color:var(--text);font:16px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical;outline:none}
 .hint{font-size:12.5px;color:var(--muted);margin:6px 2px 12px}
 .hint code,.codebox code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;background:var(--bg);padding:1px 5px;border-radius:5px}
 .codebox{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:12px;overflow:auto}
-.codebox pre{margin:0;font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;color:#c9d3e6;-webkit-user-select:text;user-select:text}
+.codebox pre{margin:0;font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;color:var(--code);-webkit-user-select:text;user-select:text}
 .codebox .copy{position:absolute;top:8px;right:8px;border:0;background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 9px;font-size:12px;font-weight:700}
 .bar{height:10px;border-radius:5px;background:var(--bg);overflow:hidden;display:flex;margin:6px 0 4px}
 .bar span{display:block;height:100%}
@@ -176,6 +187,15 @@ textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid
 .stlist .row .ic{width:30px;height:30px;border-radius:8px;overflow:hidden;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
 .stlist .row .ic img{width:100%;height:100%;object-fit:cover}
 .stlist .row .ic .letter{font-size:13px;font-weight:800}
+.themegrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:2px 0 14px}
+.themecard{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:12px;border-radius:14px;border:1.5px solid var(--line);text-align:left}
+.themecard.on{box-shadow:0 0 0 2px var(--accent) inset}
+.themecard .swatch{display:flex;gap:5px}
+.themecard .swatch i{width:22px;height:22px;border-radius:7px;display:block}
+.themecard span{font-size:13px;font-weight:700}
+.colorpick{-webkit-appearance:none;appearance:none;width:44px;height:32px;padding:0;border:1px solid var(--line);border-radius:9px;background:none;flex:none}
+.colorpick::-webkit-color-swatch-wrapper{padding:2px}
+.colorpick::-webkit-color-swatch{border:0;border-radius:7px}
 .iconpick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:4px 0 12px}
 .iconpick button{background:var(--surface);border:0;border-radius:12px;padding:12px 6px;color:var(--text);font-size:13px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:6px}
 .iconpick button span{font-size:22px}
@@ -190,7 +210,7 @@ textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid
 .dialog input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;color:var(--text);outline:none;margin-bottom:12px}
 .dialog .btns{display:flex;flex-direction:column;gap:6px}
 .dialog .btns button{border:0;border-radius:11px;padding:11px;font-weight:700;background:var(--surface);color:var(--text)}
-.dialog .btns button.primary{background:var(--accent);color:#0a0f1e}
+.dialog .btns button.primary{background:var(--accent);color:var(--on-accent)}
 .dialog .btns button.danger{color:var(--danger)}
 .dialog .btns button.plain{background:transparent;color:var(--muted);font-weight:600}
 #scrim2{z-index:200}
@@ -211,12 +231,12 @@ textarea.paste{width:100%;min-height:160px;background:var(--bg);border:1px solid
 #vptest .ok{color:#7dffb0}
 #vptest .bad{color:#ffb84a}
 #vptest button{border:0;border-radius:10px;padding:10px 16px;font-weight:700;background:#ff2fd0;color:#1b0f2b}
-#toast{position:fixed;left:50%;bottom:calc(var(--sab) + 24px);transform:translate(-50%,20px);background:#262c3a;color:#fff;border-radius:999px;padding:10px 16px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:calc(100% - 40px);text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#toast{position:fixed;left:50%;bottom:calc(var(--sab) + 24px);transform:translate(-50%,20px);background:var(--toast-bg);color:var(--toast-text);border-radius:999px;padding:10px 16px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:calc(100% - 40px);text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 #toast.action{pointer-events:auto}
 #toast button{background:none;border:0;color:var(--accent);font-weight:800;margin-left:8px}
 
-.fab{position:fixed;right:calc(var(--sar) + 18px);bottom:calc(var(--sab) + 18px);z-index:40;width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:#0a0f1e;font-size:30px;font-weight:800;box-shadow:0 8px 24px rgba(122,162,255,.35);display:flex;align-items:center;justify-content:center;line-height:1;padding:0 0 3px}
+.fab{position:fixed;right:calc(var(--sar) + 18px);bottom:calc(var(--sab) + 18px);z-index:40;width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:var(--on-accent);font-size:30px;font-weight:800;box-shadow:0 8px 24px var(--accent-glow);display:flex;align-items:center;justify-content:center;line-height:1;padding:0 0 3px}
 .fab:active{background:var(--accent2)}
 </style>
 </head>
